@@ -1,0 +1,142 @@
+name: Build Firefox Gecko IPA
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/build-trigger.txt
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Gecko iOS device IPA
+    runs-on: macos-26
+    timeout-minutes: 360
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: firefox-gecko-standard
+    steps:
+      - name: Checkout integration project
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned Reynard Gecko source
+        uses: actions/checkout@v4
+        with:
+          repository: soum91/reynard-browser
+          ref: 55eecc5b63114b0072bf14bd4c55acec01e3a40a
+          path: reynard-source
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.6'
+
+      - name: Verify integration and stamp Firefox version
+        run: |
+          python3 -m unittest discover -s tests -v
+          python3 scripts/bootstrap.py reynard-source --revision '${{ github.run_number }}' --output dist/version.json
+          plutil -lint reynard-source/browser/Reynard.xcodeproj/project.pbxproj
+          xcodebuild -list -project reynard-source/browser/Reynard.xcodeproj
+          sh -n reynard-source/tools/release/build-app.sh
+          sh -n reynard-source/tools/release/create-ipa.sh
+
+      - name: Install build dependencies
+        run: |
+          brew install python@3.12 lld cbindgen llvm ldid
+          echo "$(brew --prefix python@3.12)/libexec/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix lld)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
+
+      - name: Initialize Gecko and idevice submodules
+        working-directory: reynard-source
+        run: |
+          git submodule sync --recursive
+          git submodule update --init --recursive support/idevice
+          git submodule update --init --depth 1 engine/firefox
+
+      - name: Update and patch Gecko source
+        working-directory: reynard-source
+        run: |
+          ./tools/development/update-gecko.sh
+          ./tools/development/apply-patches.sh
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+
+      - name: Hash Rust toolchain
+        id: rust_toolchain
+        run: echo "hash=$(rustc -Vv | shasum -a 256 | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Gecko dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.mozbuild
+          key: ffgecko-deps-${{ steps.rust_toolchain.outputs.hash }}-${{ hashFiles('reynard-source/engine/release.txt') }}
+          restore-keys: |
+            ffgecko-deps-${{ steps.rust_toolchain.outputs.hash }}-
+
+      - name: Restore idevice build products
+        uses: actions/cache@v4
+        with:
+          path: |
+            reynard-source/support/idevice/target
+            reynard-source/browser/Reynard/JIT/RPPairing/libidevice_ffi.a
+          key: ffgecko-idevice-${{ steps.rust_toolchain.outputs.hash }}-${{ hashFiles('reynard-source/support/idevice/Cargo.lock', 'reynard-source/support/idevice/Cargo.toml') }}
+          restore-keys: |
+            ffgecko-idevice-${{ steps.rust_toolchain.outputs.hash }}-
+
+      - name: Enable compiler cache
+        uses: mozilla-actions/sccache-action@v0.0.11
+
+      - name: Build Gecko engine
+        working-directory: reynard-source
+        env:
+          CC: clang
+          CXX: clang++
+          LD: ld64.lld
+        run: ./tools/development/build-gecko.sh --use-sccache --auto-clobber
+
+      - name: Build JIT pairing support
+        working-directory: reynard-source
+        run: ./tools/development/build-idevice.sh
+
+      - name: Archive app with unsigned extensions
+        working-directory: reynard-source
+        run: ./tools/release/build-app.sh --no-signing
+
+      - name: Package unsigned IPA
+        working-directory: reynard-source
+        run: |
+          ./tools/release/create-ipa.sh
+          cp dist/Reynard.ipa dist/Firefox-Gecko.ipa
+          unzip -p dist/Firefox-Gecko.ipa Payload/Reynard.app/Info.plist | plutil -lint -
+          unzip -l dist/Firefox-Gecko.ipa | grep 'FirefoxDownloadWidget.appex'
+
+      - name: Upload installable prototype and version metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: Firefox-Gecko-${{ github.run_number }}
+          path: |
+            reynard-source/dist/Firefox-Gecko.ipa
+            dist/version.json
+          if-no-files-found: error
+
+      - name: Publish private prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          VERSION=$(python3 -c 'import json; print(json.load(open("dist/version.json"))["version"])')
+          gh release create "v$VERSION" reynard-source/dist/Firefox-Gecko.ipa \
+            --title "Firefox Gecko $VERSION (experimental)" \
+            --notes "Experimental Gecko-powered Reynard foundation with Firefox-style versioning and download Live Activity. This is not Mozilla-signed Firefox; the original Firefox 159 interface and default-browser eligibility are still under development. Re-sign before installation and keep all app extensions." \
+            --prerelease --latest=false

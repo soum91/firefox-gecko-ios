@@ -1,0 +1,2 @@
+Initial prototype build authorized by Soumen on 2026-10-27.
+Changing this file intentionally retriggers the expensive Gecko build.

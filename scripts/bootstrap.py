@@ -107,6 +107,48 @@ def patch_project(path: Path) -> None:
     path.write_text(content, encoding="utf-8")
 
 
+def patch_release_tools(source: Path) -> None:
+    """Keep stamped numeric versions intact through archive and IPA packaging."""
+    archive_script = source / "tools" / "release" / "build-app.sh"
+    content = archive_script.read_text(encoding="utf-8")
+    original = '''BUILD_SHA=$(git -C "$ROOT_DIR" rev-parse HEAD | cut -c1-7)
+sed -i '' -E \\
+\t-e "s|^CURRENT_BUILD = .*|CURRENT_BUILD = $BUILD_SHA|" \\
+\t"$BUILD_XCCONFIG_PATH"
+'''
+    # The upstream script deliberately uses a short SHA for CFBundleVersion.
+    # Our version must remain numeric to support iOS update checks and feeds.
+    if original not in content:
+        raise RuntimeError("Expected upstream version override was not found")
+    content = replace_once(content, original, '# Keep the numeric build stamped by the integration workflow.\n')
+    archive_script.write_text(content, encoding="utf-8")
+
+    package_script = source / "tools" / "release" / "create-ipa.sh"
+    content = package_script.read_text(encoding="utf-8")
+    first = content.index('plutil -replace CFBundleIdentifier -string "com.minh-ton.Reynard"')
+    last_line = 'plutil -replace CFBundleIdentifier -string "com.minh-ton.Reynard.AutoFill" "$APP_PATH/PlugIns/ReynardAutoFill.appex/Info.plist"'
+    last = content.index(last_line, first) + len(last_line)
+    replacement = '''# Use the app's own development bundle ID. Do not imply Mozilla signing.
+BUILD_CONFIG="$ROOT_DIR/dist/Reynard.xcconfig"
+APP_BUNDLE_ID=$(sed -n 's/^APP_BUNDLE_ID = //p' "$BUILD_CONFIG")
+PUBLIC_VERSION=$(sed -n 's/^CURRENT_VERSION = //p' "$BUILD_CONFIG")
+BUILD_NUMBER=$(sed -n 's/^CURRENT_BUILD = //p' "$BUILD_CONFIG")
+test -n "$APP_BUNDLE_ID" && test -n "$PUBLIC_VERSION" && test -n "$BUILD_NUMBER"
+
+plutil -replace CFBundleIdentifier -string "$APP_BUNDLE_ID" "$APP_PATH/Info.plist"
+plutil -replace CFBundleIdentifier -string "$APP_BUNDLE_ID.Helper" "$APP_PATH/PlugIns/Reynard Helper.appex/Info.plist"
+plutil -replace CFBundleIdentifier -string "$APP_BUNDLE_ID.OpenIn" "$APP_PATH/PlugIns/OpenIn.appex/Info.plist"
+plutil -replace CFBundleIdentifier -string "$APP_BUNDLE_ID.AutoFill" "$APP_PATH/PlugIns/ReynardAutoFill.appex/Info.plist"
+plutil -replace CFBundleIdentifier -string "$APP_BUNDLE_ID.DownloadLiveWidget" "$APP_PATH/PlugIns/FirefoxDownloadWidget.appex/Info.plist"
+for plist in "$APP_PATH/Info.plist" "$APP_PATH"/PlugIns/*.appex/Info.plist; do
+    test -f "$plist" || continue
+    plutil -replace CFBundleShortVersionString -string "$PUBLIC_VERSION" "$plist"
+    plutil -replace CFBundleVersion -string "$BUILD_NUMBER" "$plist"
+done'''
+    content = content[:first] + replacement + content[last:]
+    package_script.write_text(content, encoding="utf-8")
+
+
 def bootstrap(source: Path, revision: int) -> dict:
     config = json.loads((ROOT / "config" / "build.json").read_text(encoding="utf-8"))
     if not (source / "browser" / "Reynard.xcodeproj" / "project.pbxproj").exists():
@@ -136,6 +178,7 @@ def bootstrap(source: Path, revision: int) -> dict:
         plistlib.dump(data, fh, sort_keys=False)
 
     patch_project(source / "browser" / "Reynard.xcodeproj" / "project.pbxproj")
+    patch_release_tools(source)
     return stamp(source, config, revision)
 
 
