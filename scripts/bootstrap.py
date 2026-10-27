@@ -73,7 +73,8 @@ def patch_project(path: Path) -> None:
             'IPHONEOS_DEPLOYMENT_TARGET = 16.1; MARKETING_VERSION = "$(CURRENT_VERSION)"; '
             'PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_ID).DownloadLiveWidget"; '
             'PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SKIP_INSTALL = YES; '
-            'SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2";'
+            'SWIFT_VERSION = 5.0; SWIFT_OBJC_BRIDGING_HEADER = ""; '
+            'TARGETED_DEVICE_FAMILY = "1,2";'
         )
         content = insert_in_section(content, "XCBuildConfiguration",
             f'\t\t{ident} /* {label} */ = {{isa = XCBuildConfiguration; baseConfigurationReference = 01GECKO0052F2F289C001F0001 /* Reynard.xcconfig */; buildSettings = {{{settings}}}; name = {label}; }};\n')
