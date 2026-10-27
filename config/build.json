@@ -1,0 +1,9 @@
+{
+  "upstream_firefox_version": "159.0",
+  "upstream_firefox_build": 78949,
+  "reynard_repository": "soum91/reynard-browser",
+  "reynard_ref": "55eecc5b63114b0072bf14bd4c55acec01e3a40a",
+  "fetchdock_repository": "soum91/fetchdock",
+  "app_display_name": "Firefox",
+  "development_bundle_id": "com.soum91.FirefoxGecko"
+}

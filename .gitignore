@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.DS_Store
+dist/
+reynard-source/
+firefox-source/
+*.ipa
+*.tipa
+*.deb
+*.mobileprovision
+*.p12

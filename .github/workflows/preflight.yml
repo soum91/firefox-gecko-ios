@@ -1,0 +1,54 @@
+name: Firefox Gecko source preflight
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    # Fast Xcode project validation. Does not rebuild Gecko for each change.
+    runs-on: macos-26
+    steps:
+      - name: Check out integration overlay
+        uses: actions/checkout@v4
+
+      - name: Check out pinned Reynard source
+        uses: actions/checkout@v4
+        with:
+          repository: soum91/reynard-browser
+          ref: 55eecc5b63114b0072bf14bd4c55acec01e3a40a
+          path: reynard-source
+          persist-credentials: false
+
+      - name: Run version tests
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Apply integration overlay and stamp version
+        run: python3 scripts/bootstrap.py reynard-source --revision '${{ github.run_number }}' --output dist/version.json
+
+      - name: Verify project files
+        run: |
+          plutil -lint reynard-source/browser/Reynard.xcodeproj/project.pbxproj
+          plutil -lint reynard-source/browser/Reynard/Resources/Info.plist
+          plutil -lint reynard-source/browser/DownloadLiveWidget/Info.plist
+          xcodebuild -list -project reynard-source/browser/Reynard.xcodeproj
+
+      - name: Parse new Swift sources
+        run: |
+          xcrun swiftc -frontend -parse reynard-source/browser/Reynard/Client/Stores/FirefoxDownloadActivityAttributes.swift
+          xcrun swiftc -frontend -parse reynard-source/browser/Reynard/Client/Stores/FirefoxDownloadActivityCoordinator.swift
+          xcrun swiftc -frontend -parse reynard-source/browser/DownloadLiveWidget/FirefoxDownloadActivityAttributes.swift
+          xcrun swiftc -frontend -parse reynard-source/browser/DownloadLiveWidget/FirefoxDownloadWidget.swift
+
+      - name: Verify generated source is clean
+        run: git -C reynard-source diff --check
+
+      - name: Upload version and source overlay diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: firefox-gecko-preflight-${{ github.run_number }}
+          path: dist/version.json
