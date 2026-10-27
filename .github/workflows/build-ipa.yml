@@ -148,3 +148,51 @@ jobs:
             --title "Firefox Gecko $VERSION (experimental)" \
             --notes "Experimental Gecko-powered Reynard foundation with Firefox-style versioning and download Live Activity. This is not Mozilla-signed Firefox; the original Firefox 159 interface and default-browser eligibility are still under development. Re-sign before installation and keep all app extensions." \
             --prerelease --latest=false
+
+      - name: Update FlareStore source after published release
+        env:
+          GH_REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import datetime
+          import json
+          import os
+          from pathlib import Path
+
+          p = Path('source.json')
+          source = json.loads(p.read_text(encoding='utf-8'))
+          v = json.loads(Path('dist/version.json').read_text(encoding='utf-8'))
+          app = source['apps'][0]
+          ipa = Path('reynard-source/dist/Firefox-Gecko.ipa')
+          version = str(v['version'])
+          build = str(v['buildVersion'])
+          date = datetime.datetime.now(datetime.timezone.utc).date().isoformat()
+          url = f"https://github.com/{os.environ['GH_REPO']}/releases/download/v{version}/Firefox-Gecko.ipa"
+          note = 'Experimental Gecko iOS prototype with JIT pairing and a download Live Activity. Re-sign the IPA before installing.'
+          entry = {
+              'version': version,
+              'buildVersion': build,
+              'date': date,
+              'localizedDescription': note,
+              'downloadURL': url,
+              'size': ipa.stat().st_size,
+              'minOSVersion': '16.1',
+          }
+          old = [x for x in app.get('versions', []) if x.get('version') != version]
+          app['versions'] = [entry] + old
+          app.update({
+              'version': version,
+              'versionDate': date,
+              'versionDescription': note,
+              'downloadURL': url,
+              'size': entry['size'],
+          })
+          p.write_text(json.dumps(source, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add source.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'Update FlareStore source for Firefox Gecko release'
+            git push origin HEAD:${{ github.ref_name }}
+          fi
