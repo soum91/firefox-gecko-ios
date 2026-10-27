@@ -44,6 +44,16 @@ jobs:
           xcrun swiftc -frontend -parse reynard-source/browser/DownloadLiveWidget/FirefoxDownloadActivityAttributes.swift
           xcrun swiftc -frontend -parse reynard-source/browser/DownloadLiveWidget/FirefoxDownloadWidget.swift
 
+      - name: Build download widget without Gecko
+        run: |
+          xcodebuild build \
+            -project reynard-source/browser/Reynard.xcodeproj \
+            -target FirefoxDownloadWidget \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            SYMROOT="$RUNNER_TEMP/firefox-gecko-widget" \
+            CODE_SIGNING_ALLOWED=NO
+
       - name: Verify generated source is clean
         run: git -C reynard-source diff --check
 
