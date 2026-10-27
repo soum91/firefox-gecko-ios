@@ -13,7 +13,7 @@ jobs:
   build:
     name: Gecko iOS device IPA
     runs-on: macos-26
-    timeout-minutes: 360
+    timeout-minutes: 180
     env:
       SCCACHE_GHA_ENABLED: "true"
       SCCACHE_GHA_VERSION: firefox-gecko-standard
@@ -98,12 +98,20 @@ jobs:
         uses: mozilla-actions/sccache-action@v0.0.11
 
       - name: Build Gecko engine
+        timeout-minutes: 120
         working-directory: reynard-source
         env:
+          # Prevent the headless macOS terminal-notifier from blocking after success.
+          MOZ_NOSPAM: "1"
           CC: clang
           CXX: clang++
           LD: ld64.lld
         run: ./tools/development/build-gecko.sh --use-sccache --auto-clobber
+
+      - name: Confirm Gecko build exited and report cache usage
+        run: |
+          echo "Gecko compile command returned successfully."
+          sccache --show-stats || true
 
       - name: Build JIT pairing support
         working-directory: reynard-source
@@ -130,7 +138,7 @@ jobs:
             dist/version.json
           if-no-files-found: error
 
-      - name: Publish private prerelease
+      - name: Publish public prerelease
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
