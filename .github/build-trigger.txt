@@ -1,2 +1,4 @@
 Initial prototype build authorized by Soumen on 2026-10-27.
 Changing this file intentionally retriggers the expensive Gecko build.
+
+Retry after MOZ_NOSPAM headless notification fix; public runner; 2026-10-27.
