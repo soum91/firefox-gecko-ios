@@ -17,9 +17,8 @@ public final class ReynardGeckoEngine: Engine {
 
     public func createSession(dependencies: EngineSessionDependencies) throws -> EngineSession {
         guard Self.runtimeReady else { throw EngineError.sessionNotCreated }
-        let session = ReynardGeckoEngineSession()
-        // TODO: Pass Firefox's private browsing context from dependencies into
-        // GeckoSession(isPrivateMode:), rather than silently making every tab normal.
+        let session = ReynardGeckoEngineSession(isPrivateMode: dependencies.webviewParameters.isPrivate)
+        session.telemetryProxy = dependencies.telemetryProxy
         session.open()
         return session
     }
@@ -66,12 +65,17 @@ final class ReynardGeckoEngineSession: NSObject, EngineSession,
 
     weak var delegate: EngineSessionDelegate?
     nonisolated(unsafe) weak var telemetryProxy: EngineTelemetryProxy?
-    private let gecko = GeckoSession()
+    private let gecko: GeckoSession
     let contentView = GeckoView(frame: .zero)
     private var zoomLevel = 100
     private var canBack = false
     private var canForward = false
     var isActive = false { didSet { gecko.setActive(isActive) } }
+
+    init(isPrivateMode: Bool) {
+        gecko = GeckoSession(isPrivateMode: isPrivateMode)
+        super.init()
+    }
 
     func open() {
         gecko.open()
