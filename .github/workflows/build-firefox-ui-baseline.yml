@@ -46,7 +46,9 @@ jobs:
         timeout-minutes: 60
         run: |
           set -o pipefail
-          xcodebuild -project firefox-ios/Client.xcodeproj -scheme Firefox \
+          # The pinned Firefox source uses ModifiedCopyMacros. Headless Xcode
+          # cannot display the first-build "Trust & Enable" approval prompt.
+          xcodebuild -skipMacroValidation -project firefox-ios/Client.xcodeproj -scheme Firefox \
             -configuration Release -destination 'generic/platform=iOS' \
             -sdk iphoneos -derivedDataPath "$RUNNER_TEMP/firefox-ui-build" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
