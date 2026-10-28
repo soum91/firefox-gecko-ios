@@ -37,7 +37,7 @@ jobs:
               --target firefox-ipa-wrapper \
               --draft \
               --title "Firefox original 159.0 (78950) - iPhone compatibility diagnostic" \
-              --notes "Experimental, independently repackaged Firefox original UI. Corrected source IPA device whitelist for iPhone 17; no Gecko engine replacement. Not a Mozilla-signed or App Store-approved release. Requires signing with a compatible provisioning profile. Attach Firefox-159-install-clean-devicefix-78950.ipa before publishing this draft." \
+              --notes "Experimental, independently repackaged Firefox original UI. Corrected source IPA device whitelist for iPhone 17; no Gecko engine replacement. Not a Mozilla-signed or App Store-approved release. Requires signing with a compatible provisioning profile. Attach Firefox-159-bridge-minimal-devicefix-78950.ipa before publishing this draft. Optionally add Firefox-159-install-clean-devicefix-78950.ipa as an installation control." \
               --latest=false
           fi
 
@@ -72,9 +72,9 @@ jobs:
           mkdir -p input
           gh release download "$TAG" \
             --repo "$GITHUB_REPOSITORY" \
-            --pattern 'Firefox-159-install-clean-devicefix-78950.ipa' \
+            --pattern 'Firefox-159-bridge-minimal-devicefix-78950.ipa' \
             --dir input
-          test -s input/Firefox-159-install-clean-devicefix-78950.ipa
+          test -s input/Firefox-159-bridge-minimal-devicefix-78950.ipa
 
       - name: Inspect IPA and update source.json only if valid
         env:
@@ -88,7 +88,7 @@ jobs:
           from pathlib import Path
           import zipfile
 
-          filename = "Firefox-159-install-clean-devicefix-78950.ipa"
+          filename = "Firefox-159-bridge-minimal-devicefix-78950.ipa"
           ipa = Path("input") / filename
           with zipfile.ZipFile(ipa) as archive:
               if archive.testzip() is not None:
@@ -102,13 +102,14 @@ jobs:
               assert metadata.get("CFBundleVersion") == "78950", metadata.get("CFBundleVersion")
               assert metadata.get("CFBundleExecutable") == "Client"
               assert "UISupportedDevices" not in metadata
-              assert not any("/PlugIns/" in n for n in names), "This clean diagnostic must have no app extensions"
+              assert not any("/PlugIns/" in n for n in names), "This diagnostic must have no app extensions"
+              assert "Payload/Client.app/Frameworks/FirefoxReynardBridge.dylib" in names, "Missing injected bridge"
               assert "Payload/Client.app/Client" in names
 
           today = datetime.datetime.now(datetime.timezone.utc).date().isoformat()
           url = f"https://github.com/{os.environ['REPO']}/releases/download/firefox-original-159.0-78950/{filename}"
-          description = ("Original Firefox 159 interface and icon. iPhone 17 device compatibility fix. "
-                         "Diagnostic unsigned IPA with no extensions or Gecko engine replacement; "
+          description = ("Original Firefox 159 interface and icon with experimental bridge probe. iPhone 17 device compatibility fix. "
+                         "Unsigned bridge-loading diagnostic without extensions or Gecko engine replacement; "
                          "sign separately. Not an official Mozilla build.")
           entry = {
               "version": "159.0",
