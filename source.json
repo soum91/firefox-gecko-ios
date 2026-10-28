@@ -13,11 +13,20 @@
       "bundleIdentifier": "com.soum91.FirefoxGecko",
       "developerName": "soum91",
       "subtitle": "Experimental Gecko browser with download Live Activity",
-      "localizedDescription": "Independent Gecko-powered iOS browser prototype based on Reynard, with experimental JIT pairing support and a download Live Activity. Unsigned IPA: re-sign with all extensions before installation. Firefox-style UI and default-browser eligibility remain under development.",
+      "localizedDescription": "Experimental Gecko iOS browser based on Reynard. Current version is a minimal sideload diagnostic with no extensions. Original full build remains available.",
       "iconURL": "https://raw.githubusercontent.com/soum91/reynard-browser/main/browser/Reynard/Resources/Assets.xcassets/ReynardFox.appiconset/ReynardFox.png",
       "tintColor": "#FF8C42",
       "category": "utilities",
       "versions": [
+        {
+          "version": "159.0.3",
+          "buildVersion": "78952",
+          "date": "2026-10-28",
+          "localizedDescription": "Minimal sideload installation test from successful Gecko compile. No app extensions or download Live Activity. Requires re-signing.",
+          "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/v159.0.3-sideload-test/Firefox-Gecko-Sideload-Test.ipa",
+          "size": 110815037,
+          "minOSVersion": "16.1"
+        },
         {
           "version": "159.0.2",
           "buildVersion": "78951",
@@ -28,11 +37,11 @@
           "minOSVersion": "16.1"
         }
       ],
-      "version": "159.0.2",
-      "versionDate": "2026-10-27",
-      "versionDescription": "Experimental Gecko iOS prototype. Full IPA build passed; JIT pairing and download widget packaged. Requires re-signing.",
-      "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/v159.0.2/Firefox-Gecko.ipa",
-      "size": 111398444
+      "version": "159.0.3",
+      "versionDate": "2026-10-28",
+      "versionDescription": "Minimal sideload installation test from successful Gecko compile. No app extensions or download Live Activity. Requires re-signing.",
+      "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/v159.0.3-sideload-test/Firefox-Gecko-Sideload-Test.ipa",
+      "size": 110815037
     }
   ],
   "news": []
