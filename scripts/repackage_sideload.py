@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Generate a minimal sideload test from the existing Gecko IPA.
 
-Keep the original full-featured IPA untouched. This test intentionally removes
-all app extensions to isolate extension provisioning and entitlement failures.
+Keep the original full-featured IPA untouched. By default this test removes all
+extensions. --keep-gecko-helper preserves the essential child-process extension
+while excluding AutoFill/share/widget extensions.
 """
 import argparse
 import plistlib
@@ -14,7 +15,7 @@ import tempfile
 import zipfile
 
 
-def package(source: Path, destination: Path, version: str, build: str):
+def package(source: Path, destination: Path, version: str, build: str, keep_gecko_helper: bool = False):
     with tempfile.TemporaryDirectory(prefix="ff-gecko-repair-") as directory:
         root = Path(directory)
         with zipfile.ZipFile(source) as zin:
@@ -35,7 +36,12 @@ def package(source: Path, destination: Path, version: str, build: str):
                 if ".." in Path(path).parts:
                     raise ValueError(f"Unsafe archive member: {path}")
                 rel = path[len(app_prefix):]
-                if (rel.startswith(("PlugIns/", "Watch/", "AppClips/", "com.apple.WatchPlaceholder/"))
+                # The Gecko content process lives in the Reynard Helper extension.
+                # Keep this extension for helper diagnostics; drop UI/share extensions.
+                if rel.startswith("PlugIns/"):
+                    if not (keep_gecko_helper and rel.startswith("PlugIns/Reynard Helper.appex/")):
+                        continue
+                if (rel.startswith(("Watch/", "AppClips/", "com.apple.WatchPlaceholder/"))
                         or "/_CodeSignature/" in path
                         or "/SC_Info/" in path
                         or path.endswith("embedded.mobileprovision")):
@@ -70,6 +76,27 @@ def package(source: Path, destination: Path, version: str, build: str):
         # The installer must sign with its own account/certificate afterward.
         subprocess.run(["ldid", "-S", str(exe)], check=True)
 
+        if keep_gecko_helper:
+            helper_dir = app_dir / "PlugIns" / "Reynard Helper.appex"
+            helper_info = helper_dir / "Info.plist"
+            if not helper_info.is_file():
+                raise ValueError("Original IPA lacks required Gecko child-process helper")
+            with helper_info.open("rb") as f:
+                helper_plist = plistlib.load(f)
+            if helper_plist.get("CFBundleIdentifier") != "com.soum91.FirefoxGecko.Helper":
+                raise ValueError("Unexpected Gecko child process bundle identifier")
+            helper_plist["CFBundleShortVersionString"] = version
+            helper_plist["CFBundleVersion"] = build
+            with helper_info.open("wb") as f:
+                plistlib.dump(helper_plist, f, sort_keys=False)
+            helper_exe = helper_dir / helper_plist["CFBundleExecutable"]
+            if not helper_exe.is_file():
+                raise ValueError("Gecko helper executable is missing")
+            # Previous app-store/ad-hoc entitlements are not the user's FlareStore
+            # profile. The sideloader must sign BOTH main app and this helper
+            # against the real provisioned Team ID.
+            subprocess.run(["ldid", "-S", str(helper_exe)], check=True)
+
         destination.parent.mkdir(parents=True, exist_ok=True)
         with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED, compresslevel=6, allowZip64=True) as zout:
             for file in sorted((root / "Payload").rglob("*")):
@@ -88,7 +115,14 @@ def package(source: Path, destination: Path, version: str, build: str):
         info = plistlib.loads(zin.read(info_path))
         assert info["CFBundleShortVersionString"] == version
         assert info["CFBundleVersion"] == build
-        assert not any("/PlugIns/" in name for name in zin.namelist())
+        extensions = [x for x in zin.namelist() if x.endswith(".appex/Info.plist")]
+        if keep_gecko_helper:
+            assert extensions == [app_prefix + "PlugIns/Reynard Helper.appex/Info.plist"], extensions
+            helper = plistlib.loads(zin.read(extensions[0]))
+            assert helper["CFBundleVersion"] == build
+            assert helper["CFBundleIdentifier"] == "com.soum91.FirefoxGecko.Helper"
+        else:
+            assert not extensions
     print(f"Generated {destination} ({destination.stat().st_size} bytes) from {source}")
 
 
@@ -98,5 +132,8 @@ if __name__ == "__main__":
     p.add_argument("output", type=Path)
     p.add_argument("--version", required=True)
     p.add_argument("--build", required=True)
+    p.add_argument("--keep-gecko-helper", action="store_true",
+                   help="Retain essential Gecko child-process extension; requires signer support")
     args = p.parse_args()
-    package(args.source, args.output, args.version, args.build)
+    package(args.source, args.output, args.version, args.build,
+            keep_gecko_helper=args.keep_gecko_helper)
