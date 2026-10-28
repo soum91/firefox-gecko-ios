@@ -1,0 +1,102 @@
+name: Repair Firefox Gecko IPA for sideload test
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/sideload-repair.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repackage:
+    name: Repackage existing IPA without Gecko compilation
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - name: Checkout packaging scripts and feed
+        uses: actions/checkout@v4
+
+      - name: Install lightweight signing utility
+        run: |
+          brew install ldid
+          command -v ldid
+
+      - name: Download previously compiled Gecko IPA
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p input dist
+          gh release download v159.0.2 --repo "$GITHUB_REPOSITORY" --pattern 'Firefox-Gecko.ipa' --dir input
+          test -s input/Firefox-Gecko.ipa
+          unzip -tq input/Firefox-Gecko.ipa
+
+      - name: Repackage minimal sideload test (no extensions)
+        run: |
+          python3 scripts/repackage_sideload.py input/Firefox-Gecko.ipa dist/Firefox-Gecko-Sideload-Test.ipa --version 159.0.3 --build 78952
+          unzip -tq dist/Firefox-Gecko-Sideload-Test.ipa
+          unzip -l dist/Firefox-Gecko-Sideload-Test.ipa | grep -q 'Payload/Reynard.app/Info.plist'
+          ! unzip -Z1 dist/Firefox-Gecko-Sideload-Test.ipa | grep -q '/PlugIns/'
+
+      - name: Upload standalone diagnostic IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Firefox-Gecko-Sideload-Test-v159.0.3
+          path: dist/Firefox-Gecko-Sideload-Test.ipa
+          if-no-files-found: error
+
+      - name: Publish separate sideload test release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v159.0.3-sideload-test dist/Firefox-Gecko-Sideload-Test.ipa \
+            --repo "$GITHUB_REPOSITORY" \
+            --title 'Firefox Gecko 159.0.3 (minimal sideload diagnostic)' \
+            --notes 'Diagnostic unsigned IPA repackaged from the compiled v159.0.2 Gecko release. No Gecko rebuild. Removes app extensions and inherited executable entitlements for sideloader provisioning tests. Download Live Activity, AutoFill, share helpers and other extensions are unavailable in this test variant. Re-sign the IPA with your sideloader. Not official Mozilla Firefox.' \
+            --prerelease --latest=false
+
+      - name: Update FlareStore feed with distinct test version
+        env:
+          GH_REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import datetime
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("source.json")
+          source = json.loads(path.read_text(encoding="utf-8"))
+          app = source["apps"][0]
+          version, build = "159.0.3", "78952"
+          date = datetime.datetime.now(datetime.timezone.utc).date().isoformat()
+          ipa = Path("dist/Firefox-Gecko-Sideload-Test.ipa")
+          url = f"https://github.com/{os.environ['GH_REPO']}/releases/download/v159.0.3-sideload-test/Firefox-Gecko-Sideload-Test.ipa"
+          description = "Minimal sideload installation test from successful Gecko compile. No app extensions or download Live Activity. Requires re-signing."
+          entry = dict(
+              version=version,
+              buildVersion=build,
+              date=date,
+              localizedDescription=description,
+              downloadURL=url,
+              size=ipa.stat().st_size,
+              minOSVersion="16.1",
+          )
+          app["versions"] = [entry] + [e for e in app["versions"] if e["version"] != version]
+          app.update(version=version, versionDate=date, versionDescription=description,
+                     downloadURL=url, size=entry["size"])
+          app["localizedDescription"] = (
+              "Experimental Gecko iOS browser based on Reynard. Current version is a minimal "
+              "sideload diagnostic with no extensions. Original full build remains available."
+          )
+          path.write_text(json.dumps(source, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add source.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'Publish sideload diagnostic release in FlareStore source'
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
