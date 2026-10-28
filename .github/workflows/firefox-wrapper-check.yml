@@ -1,0 +1,21 @@
+name: Firefox original IPA wrapper checks
+on:
+  push:
+    branches: [firefox-ipa-wrapper]
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax check and structural Mach-O tests
+        run: |
+          python3 -m compileall -q option1/tools option1/tests
+          python3 -m unittest discover -s option1/tests -v
+      - name: Ensure decrypted Firefox binaries are not committed
+        run: |
+          if git ls-files | grep -Ei '\.(ipa|app|dylib|framework|xcframework)$'; then
+            echo 'Refusing to commit binary or decrypted Firefox app' >&2
+            exit 1
+          fi
