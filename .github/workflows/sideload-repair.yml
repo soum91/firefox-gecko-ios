@@ -1,4 +1,4 @@
-name: Repair Firefox Gecko IPA for sideload test
+name: Repair Firefox Gecko IPA with essential child-process helper
 
 on:
   workflow_dispatch:
@@ -32,28 +32,29 @@ jobs:
           test -s input/Firefox-Gecko.ipa
           unzip -tq input/Firefox-Gecko.ipa
 
-      - name: Repackage minimal sideload test (no extensions)
+      - name: Repackage Gecko sideload test (preserve child-process helper)
         run: |
-          python3 scripts/repackage_sideload.py input/Firefox-Gecko.ipa dist/Firefox-Gecko-Sideload-Test.ipa --version 159.0.3 --build 78952
-          unzip -tq dist/Firefox-Gecko-Sideload-Test.ipa
-          unzip -l dist/Firefox-Gecko-Sideload-Test.ipa | grep -q 'Payload/Reynard.app/Info.plist'
-          ! unzip -Z1 dist/Firefox-Gecko-Sideload-Test.ipa | grep -q '/PlugIns/'
+          python3 scripts/repackage_sideload.py input/Firefox-Gecko.ipa dist/Firefox-Gecko-Helper-Test.ipa --version 159.0.4 --build 78953 --keep-gecko-helper
+          unzip -tq dist/Firefox-Gecko-Helper-Test.ipa
+          unzip -l dist/Firefox-Gecko-Helper-Test.ipa | grep -q 'Payload/Reynard.app/Info.plist'
+          unzip -Z1 dist/Firefox-Gecko-Helper-Test.ipa | grep -Fq 'Payload/Reynard.app/PlugIns/Reynard Helper.appex/Info.plist'
+          ! unzip -Z1 dist/Firefox-Gecko-Helper-Test.ipa | grep -Eq 'PlugIns/(ReynardAutoFill|OpenIn|FirefoxDownloadWidget).appex/'
 
       - name: Upload standalone diagnostic IPA
         uses: actions/upload-artifact@v4
         with:
-          name: Firefox-Gecko-Sideload-Test-v159.0.3
-          path: dist/Firefox-Gecko-Sideload-Test.ipa
+          name: Firefox-Gecko-Helper-Test-v159.0.4
+          path: dist/Firefox-Gecko-Helper-Test.ipa
           if-no-files-found: error
 
       - name: Publish separate sideload test release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v159.0.3-sideload-test dist/Firefox-Gecko-Sideload-Test.ipa \
+          gh release create v159.0.4-gecko-helper-test dist/Firefox-Gecko-Helper-Test.ipa \
             --repo "$GITHUB_REPOSITORY" \
-            --title 'Firefox Gecko 159.0.3 (minimal sideload diagnostic)' \
-            --notes 'Diagnostic unsigned IPA repackaged from the compiled v159.0.2 Gecko release. No Gecko rebuild. Removes app extensions and inherited executable entitlements for sideloader provisioning tests. Download Live Activity, AutoFill, share helpers and other extensions are unavailable in this test variant. Re-sign the IPA with your sideloader. Not official Mozilla Firefox.' \
+            --title 'Firefox Gecko 159.0.4 (Gecko helper diagnostic)' \
+            --notes 'Unsigned Gecko startup diagnostic repackaged from compiled v159.0.2. Preserves essential Reynard Helper.appex for Gecko child processes, strips nonessential AutoFill/share/widget extensions, removes old signing files, and clears inherited main/helper entitlements. Sideloader must re-sign BOTH app and helper with provisioned entitlements. Not a native Firefox wrapper or Mozilla-signed application. Launch not verified.' \
             --prerelease --latest=false
 
       - name: Update FlareStore feed with distinct test version
@@ -69,11 +70,11 @@ jobs:
           path = Path("source.json")
           source = json.loads(path.read_text(encoding="utf-8"))
           app = source["apps"][0]
-          version, build = "159.0.3", "78952"
+          version, build = "159.0.4", "78953"
           date = datetime.datetime.now(datetime.timezone.utc).date().isoformat()
-          ipa = Path("dist/Firefox-Gecko-Sideload-Test.ipa")
-          url = f"https://github.com/{os.environ['GH_REPO']}/releases/download/v159.0.3-sideload-test/Firefox-Gecko-Sideload-Test.ipa"
-          description = "Minimal sideload installation test from successful Gecko compile. No app extensions or download Live Activity. Requires re-signing."
+          ipa = Path("dist/Firefox-Gecko-Helper-Test.ipa")
+          url = f"https://github.com/{os.environ['GH_REPO']}/releases/download/v159.0.4-gecko-helper-test/Firefox-Gecko-Helper-Test.ipa"
+          description = "Gecko launch diagnostic preserving required child-process helper; optional extensions and download widget removed. All embedded executable code requires signing."
           entry = dict(
               version=version,
               buildVersion=build,
@@ -87,8 +88,8 @@ jobs:
           app.update(version=version, versionDate=date, versionDescription=description,
                      downloadURL=url, size=entry["size"])
           app["localizedDescription"] = (
-              "Experimental Gecko iOS browser based on Reynard. Current version is a minimal "
-              "sideload diagnostic with no extensions. Original full build remains available."
+              "Experimental Reynard/Gecko iOS browser. Current version restores essential "
+              "Gecko child-process helper while omitting optional extensions. Not original Firefox UI."
           )
           path.write_text(json.dumps(source, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
           PY
@@ -96,7 +97,7 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add source.json
           if ! git diff --cached --quiet; then
-            git commit -m 'Publish sideload diagnostic release in FlareStore source'
+            git commit -m 'Publish essential-helper diagnostic in FlareStore source'
             git pull --rebase origin main
             git push origin HEAD:main
           fi
