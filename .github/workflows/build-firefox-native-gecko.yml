@@ -11,7 +11,7 @@ permissions:
 jobs:
   native:
     runs-on: macos-26
-    timeout-minutes: 75
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - name: Checkout Firefox 159 native app source
@@ -24,7 +24,7 @@ jobs:
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: '26.6'
+          xcode-version: '26.5'
       - name: Retrieve previously compiled Reynard Gecko engine
         uses: actions/download-artifact@v4
         with:
@@ -41,24 +41,25 @@ jobs:
           python3 option2/tools/apply_overlay.py firefox-source dependencies/GeckoView.xcframework
           swift package --package-path firefox-source/BrowserKit dump-package >/tmp/BrowserKit.json
       - name: Compile Firefox BrowserKit WebEngine with actual Gecko adapter
-        timeout-minutes: 45
+        timeout-minutes: 60
         working-directory: firefox-source/BrowserKit
         run: |
           set -o pipefail
-          xcodebuild -scheme WebEngine -configuration Debug \
+          xcodebuild -skipMacroValidation -scheme WebEngine -configuration Debug \
             -destination 'generic/platform=iOS' \
             -sdk iphoneos -derivedDataPath "$RUNNER_TEMP/firefox-gecko-derived" \
             CODE_SIGNING_ALLOWED=NO build 2>&1 | tee "$RUNNER_TEMP/firefox-gecko-build.log"
       - name: Attempt to build original Firefox Client shell
-        timeout-minutes: 20
+        timeout-minutes: 45
         working-directory: firefox-source
         run: |
           set -o pipefail
-          xcodebuild -project firefox-ios/Client.xcodeproj \
-            -scheme Fennec -configuration Debug \
+          xcodebuild -skipMacroValidation -project firefox-ios/Client.xcodeproj \
+            -scheme Firefox -configuration Debug \
             -destination 'generic/platform=iOS' -sdk iphoneos \
             -derivedDataPath "$RUNNER_TEMP/firefox-client-derived" \
-            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee "$RUNNER_TEMP/firefox-client-build.log"
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            build 2>&1 | tee "$RUNNER_TEMP/firefox-client-build.log"
       - name: Retain build diagnostics (always)
         if: always()
         uses: actions/upload-artifact@v4
