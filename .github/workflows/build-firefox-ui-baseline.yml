@@ -1,0 +1,83 @@
+name: Build genuine Mozilla Firefox 159 UI baseline
+
+on:
+  push:
+    branches: [firefox-native-gecko]
+    paths:
+      - .github/workflows/build-firefox-ui-baseline.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  firefox-ui:
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - name: Checkout Firefox integration branch
+        uses: actions/checkout@v4
+      - name: Checkout genuine Firefox iOS 159 source
+        uses: actions/checkout@v4
+        with:
+          repository: mozilla-mobile/firefox-ios
+          ref: firefox-v159.0
+          path: firefox-source
+          fetch-depth: 1
+      - name: Select Firefox-supported Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.5'
+      - name: Confirm this is Mozilla Firefox, never Reynard UI
+        run: |
+          test -f firefox-source/firefox-ios/Client.xcodeproj/project.pbxproj
+          test -f firefox-source/firefox-ios/Client/TabManagement/TabWebView.swift
+          test -f firefox-source/firefox-ios/Client/Entitlements/FirefoxApplication.entitlements
+          test -f firefox-source/firefox-ios/Client.xcodeproj/xcshareddata/xcschemes/Firefox.xcscheme
+          xcodebuild -version
+      - name: Generate Firefox scripts and project prerequisites
+        working-directory: firefox-source
+        timeout-minutes: 18
+        run: |
+          set -o pipefail
+          bash ./bootstrap.sh firefox 2>&1 | tee "$RUNNER_TEMP/firefox-bootstrap.log"
+      - name: Compile real Firefox app shell (no Gecko substitution yet)
+        working-directory: firefox-source
+        timeout-minutes: 60
+        run: |
+          set -o pipefail
+          xcodebuild -project firefox-ios/Client.xcodeproj -scheme Firefox \
+            -configuration Release -destination 'generic/platform=iOS' \
+            -sdk iphoneos -derivedDataPath "$RUNNER_TEMP/firefox-ui-build" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            build 2>&1 | tee "$RUNNER_TEMP/firefox-ui-build.log"
+      - name: Package unsigned real Firefox UI for subsequent Gecko integration
+        run: |
+          set -eu
+          mkdir -p dist work/Payload
+          app=$(find "$RUNNER_TEMP/firefox-ui-build/Build/Products" -name "Client.app" -type d -print -quit)
+          test -n "$app"
+          /usr/bin/ditto "$app" work/Payload/Client.app
+          /usr/bin/plutil -extract CFBundleIdentifier raw work/Payload/Client.app/Info.plist
+          test "$(/usr/bin/plutil -extract CFBundleExecutable raw work/Payload/Client.app/Info.plist)" = "Client"
+          /usr/bin/plutil -p work/Payload/Client.app/Info.plist | grep -E 'org.mozilla.ios.Firefox|Mozilla|Firefox'
+          ! find work/Payload/Client.app -name "Reynard" | grep -q .
+          (cd work && /usr/bin/zip -qry "$GITHUB_WORKSPACE/dist/Firefox-159-Original-UI-BASELINE-NO-GECKO.ipa" Payload)
+          unzip -tq dist/Firefox-159-Original-UI-BASELINE-NO-GECKO.ipa
+      - name: Upload actual Firefox UI baseline, not a finished Gecko build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Original-Firefox-159-UI-Baseline-NO-GECKO
+          path: dist/Firefox-159-Original-UI-BASELINE-NO-GECKO.ipa
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload compilation logs even if failed
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Original-Firefox-159-UI-Compile-Logs
+          path: |
+            ${{ runner.temp }}/firefox-bootstrap.log
+            ${{ runner.temp }}/firefox-ui-build.log
+          if-no-files-found: warn
+          retention-days: 14
