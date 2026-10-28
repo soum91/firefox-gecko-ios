@@ -1,0 +1,46 @@
+name: Verify Firefox 159 native-source overlay
+on:
+  push:
+    branches: [firefox-native-gecko]
+    paths:
+      - .github/workflows/verify-firefox-source.yml
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: read
+jobs:
+  overlay:
+    runs-on: macos-26
+    timeout-minutes: 25
+    steps:
+      - name: Checkout integration branch
+        uses: actions/checkout@v4
+      - name: Checkout original Firefox iOS 159 source
+        uses: actions/checkout@v4
+        with:
+          repository: mozilla-mobile/firefox-ios
+          ref: firefox-v159.0
+          path: firefox-source
+          fetch-depth: 1
+      - name: Download previously compiled device GeckoView framework
+        uses: actions/download-artifact@v4
+        with:
+          name: Reynard-GeckoView-device-xcframework
+          run-id: 40616713433
+          github-token: ${{ github.token }}
+          path: dependencies
+      - name: Patch Firefox's BrowserKit engine target
+        run: |
+          find dependencies -maxdepth 3 -name Info.plist
+          test -f dependencies/GeckoView.xcframework/Info.plist
+          python3 option2/tools/apply_overlay.py firefox-source dependencies/GeckoView.xcframework
+          grep -F '.binaryTarget(name: "GeckoView"' firefox-source/BrowserKit/Package.swift
+          swiftc -frontend -parse firefox-source/BrowserKit/Sources/WebEngine/ReynardGeckoEngine.swift
+          swift package --package-path firefox-source/BrowserKit dump-package > /tmp/gecko-browserkit-manifest.json
+          grep -q GeckoView /tmp/gecko-browserkit-manifest.json
+      - name: Verify native Firefox front-end remains in checkout
+        run: |
+          test -d firefox-source/firefox-ios/Client/Frontend
+          test -d firefox-source/firefox-ios/Client/Assets
+          test -f firefox-source/BrowserKit/Sources/WebEngine/WKWebview/WKEngine.swift
+          echo 'Firefox UI remains intact; engine factory is not yet swapped.'
