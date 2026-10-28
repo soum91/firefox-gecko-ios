@@ -76,11 +76,14 @@ jobs:
         working-directory: reynard-source
         run: |
           set -o pipefail
-          xcodebuild -project browser/Reynard.xcodeproj -scheme GeckoView \
-            -configuration Release -destination 'generic/platform=iOS' \
-            -sdk iphoneos -arch arm64 \
-            -derivedDataPath "$RUNNER_TEMP/reynard-gecko-dev" \
-            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee "$RUNNER_TEMP/geckoview-dev-build.log"
+          # Previous workflow failed because -destination and -arch conflict.
+          # Build the actual framework target, not the Reynard app or a nonexistent
+          # shared GeckoView scheme, and locate products under a stable SYMROOT.
+          xcodebuild -project browser/Reynard.xcodeproj -target GeckoView \
+            -configuration Release -sdk iphoneos -arch arm64 \
+            SYMROOT="$RUNNER_TEMP/reynard-gecko-dev/Build/Products" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            build 2>&1 | tee "$RUNNER_TEMP/geckoview-dev-build.log"
           FRAMEWORK="$RUNNER_TEMP/reynard-gecko-dev/Build/Products/Release-iphoneos/GeckoView.framework"
           test -f "$FRAMEWORK/GeckoView"
           test -d "$FRAMEWORK/Modules/GeckoView.swiftmodule"
