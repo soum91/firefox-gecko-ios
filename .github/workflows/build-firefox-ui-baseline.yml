@@ -33,7 +33,7 @@ jobs:
           test -f firefox-source/firefox-ios/Client.xcodeproj/project.pbxproj
           test -f firefox-source/firefox-ios/Client/TabManagement/TabWebView.swift
           test -f firefox-source/firefox-ios/Client/Entitlements/FirefoxApplication.entitlements
-          test -f firefox-source/firefox-ios/Client.xcodeproj/xcshareddata/xcschemes/Firefox.xcscheme
+          test -f firefox-source/firefox-ios/Client.xcodeproj/xcshareddata/xcschemes/Fennec.xcscheme
           xcodebuild -version
       - name: Generate Firefox scripts and project prerequisites
         working-directory: firefox-source
@@ -48,8 +48,8 @@ jobs:
           set -o pipefail
           # The pinned Firefox source uses ModifiedCopyMacros. Headless Xcode
           # cannot display the first-build "Trust & Enable" approval prompt.
-          xcodebuild -skipMacroValidation -project firefox-ios/Client.xcodeproj -scheme Firefox \
-            -configuration Release -destination 'generic/platform=iOS' \
+          xcodebuild -skipMacroValidation -project firefox-ios/Client.xcodeproj -scheme Fennec \
+            -configuration Debug -destination 'generic/platform=iOS' \
             -sdk iphoneos -derivedDataPath "$RUNNER_TEMP/firefox-ui-build" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             build 2>&1 | tee "$RUNNER_TEMP/firefox-ui-build.log"
