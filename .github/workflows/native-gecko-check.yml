@@ -1,0 +1,24 @@
+name: Firefox native Gecko source checks
+on:
+  push:
+    branches: [firefox-native-gecko]
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Overlay regression checks
+        run: |
+          python3 -m compileall -q option2/tools option2/tests
+          python3 -m unittest discover -s option2/tests -v
+      - name: Swift syntax parsing (not linking)
+        run: |
+          swiftc -frontend -parse option2/BrowserKit/WebEngine/ReynardGeckoEngine.swift
+      - name: Prevent Firefox IPA upload
+        run: |
+          if git ls-files | grep -Ei '(\.ipa$|\.xcframework/|Payload/Client\.app/)'; then
+            echo 'Original Firefox binary or Gecko framework must remain external' >&2
+            exit 1
+          fi
