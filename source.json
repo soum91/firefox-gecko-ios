@@ -13,11 +13,20 @@
       "bundleIdentifier": "com.soum91.FirefoxGecko",
       "developerName": "soum91",
       "subtitle": "Experimental Gecko browser with download Live Activity",
-      "localizedDescription": "Experimental Reynard/Gecko iOS browser. Current version restores essential Gecko child-process helper while omitting optional extensions. Not original Firefox UI.",
+      "localizedDescription": "Gecko XUL.dylib code-signature and dyld dependency diagnostic. Retains essential helper; must re-sign all embedded libraries and helper using your certificate. Launch not verified. Reynard UI.",
       "iconURL": "https://raw.githubusercontent.com/soum91/reynard-browser/main/browser/Reynard/Resources/Assets.xcassets/ReynardFox.appiconset/ReynardFox.png",
       "tintColor": "#FF8C42",
       "category": "utilities",
       "versions": [
+        {
+          "version": "159.0.5",
+          "buildVersion": "78954",
+          "date": "2026-10-28",
+          "localizedDescription": "Gecko XUL.dylib code-signature and dyld dependency diagnostic. Retains essential helper; must re-sign all embedded libraries and helper using your certificate. Launch not verified. Reynard UI.",
+          "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/v159.0.5-xul-signature-fix/Firefox-Gecko-XUL-Signature-Fix.ipa",
+          "size": 111473848,
+          "minOSVersion": "16.1"
+        },
         {
           "version": "159.0.4",
           "buildVersion": "78953",
@@ -46,11 +55,11 @@
           "minOSVersion": "16.1"
         }
       ],
-      "version": "159.0.4",
+      "version": "159.0.5",
       "versionDate": "2026-10-28",
-      "versionDescription": "Gecko launch diagnostic preserving required child-process helper; optional extensions and download widget removed. All embedded executable code requires signing.",
-      "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/v159.0.4-gecko-helper-test/Firefox-Gecko-Helper-Test.ipa",
-      "size": 110832546
+      "versionDescription": "Gecko XUL.dylib code-signature and dyld dependency diagnostic. Retains essential helper; must re-sign all embedded libraries and helper using your certificate. Launch not verified. Reynard UI.",
+      "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/v159.0.5-xul-signature-fix/Firefox-Gecko-XUL-Signature-Fix.ipa",
+      "size": 111473848
     }
   ],
   "news": []
