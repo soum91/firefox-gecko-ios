@@ -7,6 +7,7 @@ multi-process runtime. The Engine factory/runtime startup still need wiring.
 """
 import argparse
 from pathlib import Path
+import plistlib
 import re
 import shutil
 
@@ -30,6 +31,20 @@ def apply(firefox_root: Path, adapter_file: Path, xcframework: Path) -> None:
         raise ValueError("BrowserKit/Package.swift missing")
     if not xcframework.is_dir() or not (xcframework / "Info.plist").exists():
         raise ValueError("Supply a device-compatible GeckoView.xcframework with Info.plist")
+    with (xcframework / "Info.plist").open("rb") as source:
+        framework_info = plistlib.load(source)
+    device_slices = [
+        item for item in framework_info.get("AvailableLibraries", [])
+        if item.get("SupportedPlatform") == "ios"
+        and "arm64" in item.get("SupportedArchitectures", [])
+    ]
+    if not device_slices:
+        raise ValueError("GeckoView.xcframework lacks an iOS arm64 device slice")
+    if not any(xcframework.glob("**/GeckoView.swiftmodule/*-apple-ios.swiftinterface")):
+        raise ValueError(
+            "GeckoView.xcframework lacks a distributable Swift interface; "
+            "rebuild GeckoView from source with BUILD_LIBRARY_FOR_DISTRIBUTION=YES"
+        )
 
     # The actual GeckoView runtime and child-process extensions are NOT shipped
     # via SwiftPM alone. Xcode app embedding is a separate required integration.
