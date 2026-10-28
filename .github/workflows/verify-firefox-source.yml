@@ -31,7 +31,11 @@ jobs:
           path: dependencies
       - name: Patch Firefox's BrowserKit engine target
         run: |
-          find dependencies -maxdepth 3 -name Info.plist
+          # actions/download-artifact unpacks the contents of the .xcframework directory at the artifact root.
+          test -f dependencies/Info.plist
+          mkdir -p dependencies/GeckoView.xcframework
+          mv dependencies/Info.plist dependencies/GeckoView.xcframework/
+          mv dependencies/ios-* dependencies/GeckoView.xcframework/
           test -f dependencies/GeckoView.xcframework/Info.plist
           python3 option2/tools/apply_overlay.py firefox-source dependencies/GeckoView.xcframework
           grep -F '.binaryTarget(name: "GeckoView"' firefox-source/BrowserKit/Package.swift
