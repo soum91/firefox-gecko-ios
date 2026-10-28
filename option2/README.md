@@ -26,6 +26,12 @@ python3 option2/tools/apply_overlay.py firefox-source /path/to/GeckoView.xcframe
 
 This copies the adapter into Firefox's BrowserKit `WebEngine` source and adds a binary `GeckoView` dependency. It deliberately **does not** redirect the production engine factory yet, because Gecko's runtime and child process resources must first be initialized. Doing so prematurely would crash Firefox.
 
+## Important Firefox 159 architecture finding
+
+The production Firefox 159 Client still uses its **legacy** `firefox-ios/Client/TabManagement/TabWebView.swift` class, which inherits from `WKWebView`. The main `Tab.swift` stores `TabWebView` and the native BrowserViewController tracks `WKWebView` instances. The new BrowserKit `WebEngine` layer is not yet the complete production rendering path. Therefore **adding the adapter to BrowserKit alone does not replace Firefox's active web engine**.
+
+Production migration must refactor the Client tab/webview contract, navigation state observers, browser display container, and WebKit-dependent features so each Firefox tab uses a Reynard Gecko session. Do not label an IPA Gecko-powered merely because the `ReynardGeckoEngine.swift` file is compiled.
+
 ## Required before a working IPA
 
 1. Integrate `GeckoRuntime.main` with Firefox startup, the Gecko helper/XPC process entry points and runtime assets; embed and re-sign those alongside `GeckoView.framework`.
