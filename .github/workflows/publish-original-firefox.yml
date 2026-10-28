@@ -1,0 +1,168 @@
+name: Publish original Firefox 159 wrapper to FlareStore
+
+on:
+  push:
+    paths:
+      - .github/workflows/publish-original-firefox.yml
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published original Firefox wrapper release tag to index
+        type: string
+        required: false
+        default: firefox-original-159.0-78950
+
+permissions:
+  contents: write
+
+jobs:
+  prepare-draft:
+    name: Prepare upload-ready GitHub draft release
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create draft for user-supplied IPA
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          TAG=firefox-original-159.0-78950
+          if gh release view "$TAG" --repo "$GH_REPO" >/dev/null 2>&1; then
+            echo "Release already exists: $TAG"
+          else
+            gh release create "$TAG" \
+              --repo "$GH_REPO" \
+              --target firefox-ipa-wrapper \
+              --draft \
+              --title "Firefox original 159.0 (78950) - iPhone compatibility diagnostic" \
+              --notes "Experimental, independently repackaged Firefox original UI. Corrected source IPA device whitelist for iPhone 17; no Gecko engine replacement. Not a Mozilla-signed or App Store-approved release. Requires signing with a compatible provisioning profile. Attach Firefox-159-install-clean-devicefix-78950.ipa before publishing this draft." \
+              --latest=false
+          fi
+
+  index-release:
+    name: Validate released Firefox IPA and publish FlareStore entry
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout default branch feed
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Determine release tag
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          MANUAL_TAG: ${{ inputs.tag }}
+        run: |
+          TAG="$RELEASE_TAG"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then TAG="$MANUAL_TAG"; fi
+          if [ "$TAG" != "firefox-original-159.0-78950" ]; then
+            echo "This feed workflow only accepts the validated original Firefox 159 / 78950 release" >&2
+            exit 1
+          fi
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+
+      - name: Download actual published corrected IPA
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p input
+          gh release download "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern 'Firefox-159-install-clean-devicefix-78950.ipa' \
+            --dir input
+          test -s input/Firefox-159-install-clean-devicefix-78950.ipa
+
+      - name: Inspect IPA and update source.json only if valid
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import datetime
+          import json
+          import os
+          import plistlib
+          from pathlib import Path
+          import zipfile
+
+          filename = "Firefox-159-install-clean-devicefix-78950.ipa"
+          ipa = Path("input") / filename
+          with zipfile.ZipFile(ipa) as archive:
+              if archive.testzip() is not None:
+                  raise ValueError("IPA archive integrity failed")
+              names = archive.namelist()
+              if len(names) != len(set(names)):
+                  raise ValueError("Duplicate IPA members")
+              metadata = plistlib.loads(archive.read("Payload/Client.app/Info.plist"))
+              assert metadata.get("CFBundleIdentifier") == "org.mozilla.ios.Firefox", metadata.get("CFBundleIdentifier")
+              assert metadata.get("CFBundleShortVersionString") == "159.0", metadata.get("CFBundleShortVersionString")
+              assert metadata.get("CFBundleVersion") == "78950", metadata.get("CFBundleVersion")
+              assert metadata.get("CFBundleExecutable") == "Client"
+              assert "UISupportedDevices" not in metadata
+              assert not any("/PlugIns/" in n for n in names), "This clean diagnostic must have no app extensions"
+              assert "Payload/Client.app/Client" in names
+
+          today = datetime.datetime.now(datetime.timezone.utc).date().isoformat()
+          url = f"https://github.com/{os.environ['REPO']}/releases/download/firefox-original-159.0-78950/{filename}"
+          description = ("Original Firefox 159 interface and icon. iPhone 17 device compatibility fix. "
+                         "Diagnostic unsigned IPA with no extensions or Gecko engine replacement; "
+                         "sign separately. Not an official Mozilla build.")
+          entry = {
+              "version": "159.0",
+              "buildVersion": "78950",
+              "date": today,
+              "localizedDescription": description,
+              "downloadURL": url,
+              "size": ipa.stat().st_size,
+              "minOSVersion": metadata.get("MinimumOSVersion", "16.0"),
+          }
+          icon = ("https://raw.githubusercontent.com/mozilla-mobile/firefox-ios/"
+                  "firefox-v159.0/firefox-ios/Client/Assets/AppIcons.xcassets/"
+                  "AppIcon.appiconset/appstore.png")
+          source_path = Path("source.json")
+          source = json.loads(source_path.read_text(encoding="utf-8"))
+          old = next((app for app in source["apps"]
+                      if app.get("bundleIdentifier") == "org.mozilla.ios.Firefox"), None)
+          if old is None:
+              old = {
+                  "name": "Firefox Original (Experimental)",
+                  "bundleIdentifier": "org.mozilla.ios.Firefox",
+                  "developerName": "Independent sideload diagnostic; Mozilla source",
+                  "subtitle": "Firefox UI / iPhone compatibility test",
+                  "localizedDescription": description,
+                  "iconURL": icon,
+                  "tintColor": "#FF7139",
+                  "category": "utilities",
+                  "versions": [],
+              }
+              source["apps"].append(old)
+          old["versions"] = [entry] + [
+              x for x in old.get("versions", [])
+              if x.get("buildVersion") != "78950"
+          ]
+          old.update({
+              "version": "159.0",
+              "versionDate": today,
+              "versionDescription": description,
+              "downloadURL": url,
+              "size": entry["size"],
+              "localizedDescription": description,
+              "iconURL": icon,
+          })
+          source_path.write_text(json.dumps(source, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+          print("Validated and listed actual release asset:", url)
+          PY
+
+      - name: Commit verified FlareStore entry
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add source.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Publish original Firefox 159 device-fixed IPA to FlareStore feed"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
