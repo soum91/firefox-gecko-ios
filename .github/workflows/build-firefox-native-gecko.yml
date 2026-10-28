@@ -1,0 +1,71 @@
+name: Build Firefox native UI with Reynard Gecko adapter
+on:
+  push:
+    branches: [firefox-native-gecko]
+    paths:
+      - .github/workflows/build-firefox-native-gecko.yml
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: read
+jobs:
+  native:
+    runs-on: macos-26
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout Firefox 159 native app source
+        uses: actions/checkout@v4
+        with:
+          repository: mozilla-mobile/firefox-ios
+          ref: firefox-v159.0
+          path: firefox-source
+          fetch-depth: 1
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.6'
+      - name: Retrieve previously compiled Reynard Gecko engine
+        uses: actions/download-artifact@v4
+        with:
+          name: Reynard-GeckoView-device-xcframework
+          run-id: 40616713433
+          github-token: ${{ github.token }}
+          path: dependencies
+      - name: Wire Gecko framework into original Firefox BrowserKit source
+        run: |
+          test -f dependencies/Info.plist
+          mkdir -p dependencies/GeckoView.xcframework
+          mv dependencies/Info.plist dependencies/GeckoView.xcframework/
+          mv dependencies/ios-* dependencies/GeckoView.xcframework/
+          python3 option2/tools/apply_overlay.py firefox-source dependencies/GeckoView.xcframework
+          swift package --package-path firefox-source/BrowserKit dump-package >/tmp/BrowserKit.json
+      - name: Compile Firefox BrowserKit WebEngine with actual Gecko adapter
+        timeout-minutes: 45
+        working-directory: firefox-source/BrowserKit
+        run: |
+          set -o pipefail
+          xcodebuild -scheme WebEngine -configuration Debug \
+            -destination 'generic/platform=iOS' \
+            -sdk iphoneos -derivedDataPath "$RUNNER_TEMP/firefox-gecko-derived" \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee "$RUNNER_TEMP/firefox-gecko-build.log"
+      - name: Attempt to build original Firefox Client shell
+        timeout-minutes: 20
+        working-directory: firefox-source
+        run: |
+          set -o pipefail
+          xcodebuild -project firefox-ios/Client.xcodeproj \
+            -scheme Fennec -configuration Debug \
+            -destination 'generic/platform=iOS' -sdk iphoneos \
+            -derivedDataPath "$RUNNER_TEMP/firefox-client-derived" \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee "$RUNNER_TEMP/firefox-client-build.log"
+      - name: Retain build diagnostics (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Firefox-native-Gecko-build-diagnostics
+          path: |
+            ${{ runner.temp }}/firefox-gecko-build.log
+            ${{ runner.temp }}/firefox-client-build.log
+          if-no-files-found: warn
+          retention-days: 14
