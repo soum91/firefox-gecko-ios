@@ -1,0 +1,125 @@
+name: Build unstripped Reynard GeckoView for Firefox native shell
+on:
+  push:
+    branches: [firefox-native-gecko]
+    paths:
+      - .github/workflows/build-gecko-dev-framework.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  framework-and-firefox:
+    runs-on: macos-26
+    timeout-minutes: 180
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: firefox-gecko-standard
+      MOZ_NOSPAM: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout pinned Reynard Gecko source
+        uses: actions/checkout@v4
+        with:
+          repository: soum91/reynard-browser
+          ref: 55eecc5b63114b0072bf14bd4c55acec01e3a40a
+          path: reynard-source
+          persist-credentials: false
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.6'
+      - name: Install Gecko build dependencies
+        run: |
+          brew install python@3.12 lld cbindgen llvm ldid
+          echo "$(brew --prefix python@3.12)/libexec/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix lld)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
+      - name: Initialize and patch Gecko source
+        working-directory: reynard-source
+        run: |
+          git submodule sync --recursive
+          git submodule update --init --recursive support/idevice
+          git submodule update --init --depth 1 engine/firefox
+          ./tools/development/update-gecko.sh
+          ./tools/development/apply-patches.sh
+      - name: Install Rust for iOS
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+      - name: Hash Rust toolchain
+        id: toolchain
+        run: echo "hash=$(rustc -Vv | shasum -a 256 | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+      - name: Restore Gecko dependency cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.mozbuild
+          key: ffgecko-deps-${{ steps.toolchain.outputs.hash }}-${{ hashFiles('reynard-source/engine/release.txt') }}
+          restore-keys: |
+            ffgecko-deps-${{ steps.toolchain.outputs.hash }}-
+      - name: Enable compiler cache
+        uses: mozilla-actions/sccache-action@v0.0.11
+      - name: Compile Gecko engine without desktop notifications
+        timeout-minutes: 120
+        working-directory: reynard-source
+        env:
+          CC: clang
+          CXX: clang++
+          LD: ld64.lld
+        run: ./tools/development/build-gecko.sh --use-sccache --auto-clobber
+      - name: Record compiler cache statistics
+        run: sccache --show-stats || true
+      - name: Build original Reynard GeckoView Swift framework (unstripped)
+        timeout-minutes: 25
+        working-directory: reynard-source
+        run: |
+          set -o pipefail
+          xcodebuild -project browser/Reynard.xcodeproj -scheme GeckoView \
+            -configuration Release -destination 'generic/platform=iOS' \
+            -sdk iphoneos -arch arm64 \
+            -derivedDataPath "$RUNNER_TEMP/reynard-gecko-dev" \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee "$RUNNER_TEMP/geckoview-dev-build.log"
+          FRAMEWORK="$RUNNER_TEMP/reynard-gecko-dev/Build/Products/Release-iphoneos/GeckoView.framework"
+          test -f "$FRAMEWORK/GeckoView"
+          test -d "$FRAMEWORK/Modules/GeckoView.swiftmodule"
+          find "$FRAMEWORK/Modules/GeckoView.swiftmodule" -type f
+          xcodebuild -create-xcframework -framework "$FRAMEWORK" \
+            -output "$RUNNER_TEMP/GeckoView-dev.xcframework"
+          test -f "$RUNNER_TEMP/GeckoView-dev.xcframework/Info.plist"
+      - name: Upload unstripped GeckoView developer framework
+        uses: actions/upload-artifact@v4
+        with:
+          name: Reynard-GeckoView-dev-xcframework
+          path: ${{ runner.temp }}/GeckoView-dev.xcframework
+          retention-days: 14
+          if-no-files-found: error
+      - name: Checkout native Firefox 159 source
+        uses: actions/checkout@v4
+        with:
+          repository: mozilla-mobile/firefox-ios
+          ref: firefox-v159.0
+          path: firefox-source
+          fetch-depth: 1
+      - name: Apply Gecko developer framework to Firefox BrowserKit
+        run: python3 option2/tools/apply_overlay.py firefox-source "$RUNNER_TEMP/GeckoView-dev.xcframework"
+      - name: Actually compile Firefox BrowserKit against Reynard Gecko
+        timeout-minutes: 25
+        working-directory: firefox-source/BrowserKit
+        run: |
+          set -o pipefail
+          xcodebuild -scheme WebEngine -configuration Debug \
+            -destination 'generic/platform=iOS' -sdk iphoneos \
+            -derivedDataPath "$RUNNER_TEMP/firefox-gecko-dev" \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee "$RUNNER_TEMP/firefox-webengine-dev-build.log"
+      - name: Upload developer build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Gecko-dev-framework-and-Firefox-compile-logs
+          path: |
+            ${{ runner.temp }}/geckoview-dev-build.log
+            ${{ runner.temp }}/firefox-webengine-dev-build.log
+          if-no-files-found: warn
+          retention-days: 14
