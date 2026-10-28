@@ -14,7 +14,7 @@ import tempfile
 import zipfile
 
 
-def package(source: Path, destination: Path):
+def package(source: Path, destination: Path, version: str, build: str):
     with tempfile.TemporaryDirectory(prefix="ff-gecko-repair-") as directory:
         root = Path(directory)
         with zipfile.ZipFile(source) as zin:
@@ -58,6 +58,8 @@ def package(source: Path, destination: Path):
             raise ValueError(f"Unexpected app bundle ID: {plist.get('CFBundleIdentifier')}")
         for key in ("UISupportedDevices", "WKCompanionAppBundleIdentifier", "WKWatchKitApp", "NSExtension"):
             plist.pop(key, None)
+        plist["CFBundleShortVersionString"] = version
+        plist["CFBundleVersion"] = build
         with (app_dir / "Info.plist").open("wb") as f:
             plistlib.dump(plist, f, sort_keys=False)
 
@@ -83,7 +85,9 @@ def package(source: Path, destination: Path):
 
     with zipfile.ZipFile(destination) as zin:
         assert zin.testzip() is None, "Corrupt IPA member"
-        assert zin.read(info_path)
+        info = plistlib.loads(zin.read(info_path))
+        assert info["CFBundleShortVersionString"] == version
+        assert info["CFBundleVersion"] == build
         assert not any("/PlugIns/" in name for name in zin.namelist())
     print(f"Generated {destination} ({destination.stat().st_size} bytes) from {source}")
 
@@ -92,5 +96,7 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("source", type=Path)
     p.add_argument("output", type=Path)
+    p.add_argument("--version", required=True)
+    p.add_argument("--build", required=True)
     args = p.parse_args()
-    package(args.source, args.output)
+    package(args.source, args.output, args.version, args.build)
