@@ -10,7 +10,7 @@ permissions:
 jobs:
   framework-and-firefox:
     runs-on: macos-26
-    timeout-minutes: 180
+    timeout-minutes: 360
     env:
       SCCACHE_GHA_ENABLED: "true"
       SCCACHE_GHA_VERSION: firefox-gecko-standard
@@ -62,7 +62,7 @@ jobs:
       - name: Enable compiler cache
         uses: mozilla-actions/sccache-action@v0.0.11
       - name: Compile Gecko engine without desktop notifications
-        timeout-minutes: 120
+        timeout-minutes: 300
         working-directory: reynard-source
         env:
           CC: clang
