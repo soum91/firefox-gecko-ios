@@ -29,7 +29,15 @@ class SourceOverlayTests(unittest.TestCase):
             binary = root / "GeckoView.xcframework"
             binary.mkdir()
             with (binary / "Info.plist").open("wb") as f:
-                plistlib.dump({"CFBundlePackageType": "XFWK"}, f)
+                plistlib.dump({"AvailableLibraries": [{
+                    "SupportedPlatform": "ios",
+                    "SupportedArchitectures": ["arm64"],
+                    "LibraryIdentifier": "ios-arm64",
+                    "LibraryPath": "GeckoView.framework"
+                }]}, f)
+            module = binary / "ios-arm64/GeckoView.framework/Modules/GeckoView.swiftmodule"
+            module.mkdir(parents=True)
+            (module / "arm64-apple-ios.swiftinterface").write_text("// swift interface\n")
             adapter = root / "ReynardGeckoEngine.swift"
             adapter.write_text("import GeckoView\nfinal class Adapter {}\n")
             mod.apply(firefox, adapter, binary)
@@ -37,6 +45,24 @@ class SourceOverlayTests(unittest.TestCase):
             self.assertIn('.binaryTarget(name: "GeckoView"', manifest)
             self.assertIn('dependencies: ["Common", "GeckoView",', manifest)
             self.assertEqual((webengine / "ReynardGeckoEngine.swift").read_text(), adapter.read_text())
+
+    def test_rejects_stripped_binary_framework(self):
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            firefox = root / "firefox-ios"
+            webengine = firefox / "BrowserKit/Sources/WebEngine/WKWebview"
+            webengine.mkdir(parents=True)
+            (webengine.parent / "Engine.swift").write_text("protocol Engine {}\n")
+            (webengine / "WKEngine.swift").write_text("class WKEngine {}\n")
+            (firefox / "BrowserKit/Package.swift").write_text("let package = Package()\n")
+            binary = root / "GeckoView.xcframework"
+            binary.mkdir()
+            with (binary / "Info.plist").open("wb") as f:
+                plistlib.dump({"AvailableLibraries": [{
+                    "SupportedPlatform": "ios", "SupportedArchitectures": ["arm64"]
+                }]}, f)
+            with self.assertRaisesRegex(ValueError, "distributable Swift interface"):
+                mod.apply(firefox, root / "adapter.swift", binary)
 
     def test_requires_real_binary_input(self):
         with TemporaryDirectory() as temp:
