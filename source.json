@@ -13,11 +13,20 @@
       "bundleIdentifier": "com.soum91.FirefoxGecko",
       "developerName": "soum91",
       "subtitle": "Experimental Gecko browser with download Live Activity",
-      "localizedDescription": "Experimental Gecko iOS browser based on Reynard. Current version is a minimal sideload diagnostic with no extensions. Original full build remains available.",
+      "localizedDescription": "Experimental Reynard/Gecko iOS browser. Current version restores essential Gecko child-process helper while omitting optional extensions. Not original Firefox UI.",
       "iconURL": "https://raw.githubusercontent.com/soum91/reynard-browser/main/browser/Reynard/Resources/Assets.xcassets/ReynardFox.appiconset/ReynardFox.png",
       "tintColor": "#FF8C42",
       "category": "utilities",
       "versions": [
+        {
+          "version": "159.0.4",
+          "buildVersion": "78953",
+          "date": "2026-10-28",
+          "localizedDescription": "Gecko launch diagnostic preserving required child-process helper; optional extensions and download widget removed. All embedded executable code requires signing.",
+          "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/v159.0.4-gecko-helper-test/Firefox-Gecko-Helper-Test.ipa",
+          "size": 110832546,
+          "minOSVersion": "16.1"
+        },
         {
           "version": "159.0.3",
           "buildVersion": "78952",
@@ -37,11 +46,11 @@
           "minOSVersion": "16.1"
         }
       ],
-      "version": "159.0.3",
+      "version": "159.0.4",
       "versionDate": "2026-10-28",
-      "versionDescription": "Minimal sideload installation test from successful Gecko compile. No app extensions or download Live Activity. Requires re-signing.",
-      "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/v159.0.3-sideload-test/Firefox-Gecko-Sideload-Test.ipa",
-      "size": 110815037
+      "versionDescription": "Gecko launch diagnostic preserving required child-process helper; optional extensions and download widget removed. All embedded executable code requires signing.",
+      "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/v159.0.4-gecko-helper-test/Firefox-Gecko-Helper-Test.ipa",
+      "size": 110832546
     }
   ],
   "news": []
