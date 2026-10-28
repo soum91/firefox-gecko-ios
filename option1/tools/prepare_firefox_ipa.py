@@ -101,6 +101,13 @@ def prepare(source: Path, bridge: Path, output: Path, omit_extensions: bool = Fa
             ("CFBundleVersion", "78949"),
         )):
             raise ValueError("Requires original decrypted Firefox iOS 159.0 (78949)")
+        # App Store thinning can leave a device whitelist that excludes newer models.
+        # This older Firefox 159 IPA excluded the user's iPhone18,3.
+        for key in ("UISupportedDevices", "WKCompanionAppBundleIdentifier",
+                    "WKWatchKitApp", "NSExtension"):
+            info.pop(key, None)
+        info["CFBundleVersion"] = "78950"
+        info_bytes = plistlib.dumps(info, fmt=plistlib.FMT_BINARY)
         patched = inject_bridge(zin.read(APP + "Client"))
         output.parent.mkdir(parents=True, exist_ok=True)
         with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED, compresslevel=6,
@@ -112,7 +119,8 @@ def prepare(source: Path, bridge: Path, output: Path, omit_extensions: bool = Fa
                 if ("/_CodeSignature/" in name or name.endswith("embedded.mobileprovision")
                     or "/SC_Info/" in name):
                     continue
-                data = patched if name == APP + "Client" else zin.read(item)
+                data = (patched if name == APP + "Client" else
+                        info_bytes if name == APP + "Info.plist" else zin.read(item))
                 zout.writestr(item, data)
             library_path = APP + "Frameworks/FirefoxReynardBridge.dylib"
             if library_path in zin.namelist():
@@ -123,7 +131,10 @@ def prepare(source: Path, bridge: Path, output: Path, omit_extensions: bool = Fa
             zout.writestr(item, bridge.read_bytes())
     with zipfile.ZipFile(output) as z:
         assert z.testzip() is None
-        assert plistlib.loads(z.read(APP + "Info.plist"))["CFBundleIdentifier"] == "org.mozilla.ios.Firefox"
+        result = plistlib.loads(z.read(APP + "Info.plist"))
+        assert result["CFBundleIdentifier"] == "org.mozilla.ios.Firefox"
+        assert result["CFBundleVersion"] == "78950"
+        assert "UISupportedDevices" not in result
         assert z.read(APP + "Client") != b""
     return output
 
@@ -139,6 +150,8 @@ def main():
     out = prepare(args.original_ipa, args.compiled_bridge_dylib,
                   args.output_ipa, args.omit_extensions)
     print(f"Experimental Firefox shell, NOT yet a working Gecko integration: {out}")
+    print("Signer must supply its own application-identifier and matching Team ID/keychain entitlements.")
+    print("Mozilla's privileged entitlements cannot transfer to another signing identity.")
     print("Re-sign all nested code. Original Mozilla entitlements are NOT preserved.")
 
 
