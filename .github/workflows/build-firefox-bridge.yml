@@ -1,0 +1,35 @@
+name: Build original Firefox IPA injection bridge
+on:
+  push:
+    branches: [firefox-ipa-wrapper]
+    paths:
+      - .github/workflows/build-firefox-bridge.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  bridge:
+    runs-on: macos-26
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile arm64 iOS bridge dylib
+        run: |
+          mkdir -p dist
+          SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
+          xcrun --sdk iphoneos clang \
+            -arch arm64 -isysroot "$SDK" -miphoneos-version-min=15.0 \
+            -fobjc-arc -O2 -dynamiclib \
+            option1/bridge/FirefoxReynardBridge.m -framework Foundation \
+            -install_name "@rpath/FirefoxReynardBridge.dylib" \
+            -o dist/FirefoxReynardBridge.dylib
+          codesign --force --sign - dist/FirefoxReynardBridge.dylib
+          file dist/FirefoxReynardBridge.dylib
+          otool -L dist/FirefoxReynardBridge.dylib
+      - name: Upload bridge for local decrypted Firefox IPA packaging
+        uses: actions/upload-artifact@v4
+        with:
+          name: FirefoxReynardBridge-arm64-probe
+          path: dist/FirefoxReynardBridge.dylib
+          if-no-files-found: error
+          retention-days: 14
