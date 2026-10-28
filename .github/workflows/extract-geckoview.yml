@@ -1,0 +1,38 @@
+name: Extract compiled Reynard GeckoView framework
+on:
+  push:
+    branches: [firefox-native-gecko]
+    paths:
+      - .github/workflows/extract-geckoview.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  framework:
+    runs-on: macos-26
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Gecko app produced by existing successful build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p input dist
+          gh release download v159.0.2 --repo "$GITHUB_REPOSITORY" --pattern 'Firefox-Gecko.ipa' --dir input
+          test -s input/Firefox-Gecko.ipa
+      - name: Recover device GeckoView framework
+        run: |
+          unzip -q input/Firefox-Gecko.ipa -d dist/unpacked
+          test -f dist/unpacked/Payload/Reynard.app/Frameworks/GeckoView.framework/GeckoView
+          xcodebuild -create-xcframework \
+            -framework dist/unpacked/Payload/Reynard.app/Frameworks/GeckoView.framework \
+            -output dist/GeckoView.xcframework
+          plutil -lint dist/GeckoView.xcframework/Info.plist
+          find dist/GeckoView.xcframework -maxdepth 3 -type f | head -30
+      - name: Upload device-only Gecko framework
+        uses: actions/upload-artifact@v4
+        with:
+          name: Reynard-GeckoView-device-xcframework
+          path: dist/GeckoView.xcframework
+          if-no-files-found: error
+          retention-days: 14
