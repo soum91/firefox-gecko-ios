@@ -37,6 +37,16 @@ class GeckoArtifactWorkflowTests(unittest.TestCase):
         )
         self.assertIn("reynard-engine-key.txt", workflow)
 
+    def test_engines_compiled_by_the_reynard_fork_are_reused(self):
+        workflow = BUILD.read_text(encoding="utf-8")
+        self.assertIn(".github/scripts/gecko-engine-key.sh reynard-source", workflow)
+        self.assertIn("steps.engine-key.outputs.content", workflow)
+        fetch = (ROOT / ".github/scripts/fetch-gecko-engine.sh").read_text(encoding="utf-8")
+        self.assertIn("soum91/reynard-browser", fetch)
+        self.assertLess(fetch.index("if try_release"), fetch.index("if try_artifacts"))
+        # The build flags in the key must match the ones this workflow compiles with.
+        self.assertIn("build-gecko.sh --use-sccache --auto-clobber", workflow)
+
     def test_failures_publish_real_compiler_errors(self):
         for path in (BUILD, RESUME):
             workflow = path.read_text(encoding="utf-8")

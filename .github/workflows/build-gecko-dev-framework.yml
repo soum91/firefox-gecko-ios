@@ -49,7 +49,13 @@ jobs:
         id: engine-key
         # The Reynard commit pins the Gecko release tag, patches and build
         # script, so it fully determines the compiled engine.
-        run: echo "key=gecko-engine-${ENGINE_SCHEMA}-${REYNARD_REF}-xcode${XCODE_VERSION}" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "key=gecko-engine-${ENGINE_SCHEMA}-${REYNARD_REF}-xcode${XCODE_VERSION}" >> "$GITHUB_OUTPUT"
+          # Content key shared with the Reynard fork, whose nightly builds
+          # publish their compiled engine under this name.
+          content=$(bash .github/scripts/gecko-engine-key.sh reynard-source "--use-sccache --auto-clobber")
+          echo "content=$content" >> "$GITHUB_OUTPUT"
+          echo "Gecko engine content key: $content" >> "$GITHUB_STEP_SUMMARY"
       - name: Restore cached Gecko engine
         id: engine-cache
         if: github.event.inputs.force_engine_rebuild != 'true'
@@ -63,7 +69,7 @@ jobs:
         timeout-minutes: 170
         env:
           GH_TOKEN: ${{ github.token }}
-        run: bash .github/scripts/fetch-gecko-engine.sh "${{ steps.engine-key.outputs.key }}" "$REYNARD_REF" "$RUNNER_TEMP/gecko-engine"
+        run: bash .github/scripts/fetch-gecko-engine.sh "${{ steps.engine-key.outputs.key }}" "$REYNARD_REF" "$RUNNER_TEMP/gecko-engine" "${{ steps.engine-key.outputs.content }}"
       - name: Initialize and patch Gecko source
         working-directory: reynard-source
         run: |
