@@ -40,10 +40,19 @@ def apply(firefox_root: Path, adapter_file: Path, xcframework: Path) -> None:
     ]
     if not device_slices:
         raise ValueError("GeckoView.xcframework lacks an iOS arm64 device slice")
-    if not any(xcframework.glob("**/GeckoView.swiftmodule/*-apple-ios.swiftinterface")):
+    # A framework compiled with an Objective-C bridging header cannot emit a
+    # Swift evolution interface. Accept its arm64 binary Swift module instead;
+    # the producer and consumer CI jobs must use the same Xcode toolchain.
+    if not any(
+        (xcframework / item.get("LibraryIdentifier", "") /
+         item.get("LibraryPath", "") / "Modules/GeckoView.swiftmodule" /
+         f"arm64-apple-ios.{suffix}").is_file()
+        for item in device_slices
+        for suffix in ("swiftinterface", "swiftmodule")
+    ):
         raise ValueError(
-            "GeckoView.xcframework lacks a distributable Swift interface; "
-            "rebuild GeckoView from source with BUILD_LIBRARY_FOR_DISTRIBUTION=YES"
+            "GeckoView.xcframework lacks an arm64 iOS Swift module "
+            "(swiftinterface or compiler-specific swiftmodule)"
         )
 
     # The actual GeckoView runtime and child-process extensions are NOT shipped
