@@ -11,7 +11,7 @@ mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 
 class SourceOverlayTests(unittest.TestCase):
-    def test_overlay_wires_swiftpm_binary_target_and_adapter(self):
+    def check_overlay(self, swift_module_suffix):
         with TemporaryDirectory() as temp:
             root = Path(temp)
             firefox = root / "firefox-ios"
@@ -37,7 +37,7 @@ class SourceOverlayTests(unittest.TestCase):
                 }]}, f)
             module = binary / "ios-arm64/GeckoView.framework/Modules/GeckoView.swiftmodule"
             module.mkdir(parents=True)
-            (module / "arm64-apple-ios.swiftinterface").write_text("// swift interface\n")
+            (module / f"arm64-apple-ios.{swift_module_suffix}").write_text("module bytes\n")
             adapter = root / "ReynardGeckoEngine.swift"
             adapter.write_text("import GeckoView\nfinal class Adapter {}\n")
             mod.apply(firefox, adapter, binary)
@@ -45,6 +45,12 @@ class SourceOverlayTests(unittest.TestCase):
             self.assertIn('.binaryTarget(name: "GeckoView"', manifest)
             self.assertIn('dependencies: ["Common", "GeckoView",', manifest)
             self.assertEqual((webengine / "ReynardGeckoEngine.swift").read_text(), adapter.read_text())
+
+    def test_overlay_accepts_swiftinterface(self):
+        self.check_overlay("swiftinterface")
+
+    def test_overlay_accepts_binary_swiftmodule(self):
+        self.check_overlay("swiftmodule")
 
     def test_rejects_stripped_binary_framework(self):
         with TemporaryDirectory() as temp:
@@ -61,7 +67,7 @@ class SourceOverlayTests(unittest.TestCase):
                 plistlib.dump({"AvailableLibraries": [{
                     "SupportedPlatform": "ios", "SupportedArchitectures": ["arm64"]
                 }]}, f)
-            with self.assertRaisesRegex(ValueError, "distributable Swift interface"):
+            with self.assertRaisesRegex(ValueError, "lacks an arm64 iOS Swift module"):
                 mod.apply(firefox, root / "adapter.swift", binary)
 
     def test_requires_real_binary_input(self):
