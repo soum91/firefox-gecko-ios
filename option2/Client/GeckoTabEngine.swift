@@ -23,12 +23,15 @@ import WebKit
 /// Not yet bridged (WebKit-only Firefox features stay inert in Gecko tabs):
 /// JavaScript user scripts (reader mode, page metadata, password autofill,
 /// find in page), the back/forward history menu, tab thumbnails, toolbar
-/// hide-on-scroll and pull to refresh, Firefox's link context menu, and
-/// downloads. Pages themselves render, navigate, go back/forward, reload and
+/// hide-on-scroll and pull to refresh, and Firefox's link context menu.
+/// Pages themselves render, navigate, go back/forward, reload and
 /// restore with Gecko.
 @MainActor
 final class GeckoTabEngine {
     static var isEnabled: Bool { GeckoFirefoxBootstrap.isGeckoRunning }
+
+    /// Session ID an add-on asked for with tabs.create; used by the next tab.
+    static var pendingWindowID: String?
 
     /// Prefix that marks session data written by Gecko, so WebKit session data
     /// saved before switching engines is ignored instead of misread.
@@ -55,7 +58,9 @@ final class GeckoTabEngine {
         session = GeckoSession(isPrivateMode: isPrivate)
         bridge.engine = self
         attachDelegates()
-        session.open()
+        GeckoAddonManager.shared.start()
+        session.open(windowId: Self.pendingWindowID)
+        Self.pendingWindowID = nil
         geckoView.session = session
         geckoView.frame = host.bounds
         geckoView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -98,6 +103,7 @@ final class GeckoTabEngine {
     func setVisible(_ visible: Bool) {
         guard session.isOpen() else { return }
         session.setActive(visible)
+        session.setAddonTabActive(visible)
         if visible { session.setFocused(true) }
     }
 
@@ -187,6 +193,11 @@ final class GeckoTabEngine {
 
     /// Firefox's download prompt; `decide` tells Gecko whether to keep streaming.
     fileprivate func offerDownload(_ response: ExternalResponseInfo, decide: @escaping (Bool) -> Void) {
+        if GeckoAddonPackageDownloads.isAddonPackage(response) {
+            GeckoAddonPackageDownloads.shared.add(response.localFilePath)
+            decide(true)
+            return
+        }
         guard let host, let browser = host.navigationDelegate as? BrowserViewController else {
             decide(false)
             return
@@ -279,6 +290,13 @@ final class GeckoTabDelegateBridge: ProgressDelegate, NavigationDelegate, Conten
               !webSchemes.contains(scheme) else {
             return .allow
         }
+        if scheme == "fetchdock" {
+            if request.hasUserGesture || request.isUserInitiatedNavigation {
+                let uri = request.uri
+                await MainActor.run { GeckoAddonManager.startFetchDockDownload(uri) }
+            }
+            return .deny
+        }
         await MainActor.run {
             UIApplication.shared.open(url)
         }
@@ -312,10 +330,15 @@ final class GeckoTabDelegateBridge: ProgressDelegate, NavigationDelegate, Conten
     }
 
     func onExternalResponseProgress(session: GeckoSession, localFilePath: String, bytesReceived: Int64) -> Bool {
-        GeckoStreamRegistry.shared.download(at: localFilePath)?.received(totalBytes: bytesReceived) ?? false
+        if GeckoAddonPackageDownloads.shared.contains(localFilePath) { return true }
+        return GeckoStreamRegistry.shared.download(at: localFilePath)?.received(totalBytes: bytesReceived) ?? false
     }
 
     func onExternalResponseComplete(session: GeckoSession, localFilePath: String, succeeded: Bool) {
+        if GeckoAddonPackageDownloads.shared.remove(localFilePath) {
+            Task { @MainActor in GeckoAddonManager.shared.installPackage(at: localFilePath, succeeded: succeeded) }
+            return
+        }
         guard let download = GeckoStreamRegistry.shared.remove(localFilePath) else { return }
         Task { @MainActor in download.complete(succeeded: succeeded) }
     }

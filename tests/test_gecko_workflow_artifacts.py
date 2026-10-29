@@ -87,6 +87,20 @@ class GeckoArtifactWorkflowTests(unittest.TestCase):
         self.assertLess(workflow.index("apply_overlay.py firefox-source"),
                         workflow.index("apply_client_overlay.py firefox-source"))
 
+    def test_addons_and_fetchdock_companion_are_wired(self):
+        workflow = BUILD.read_text(encoding="utf-8")
+        self.assertIn("--companion reynard-source/addons/fetchdock", workflow)
+        package = (ROOT / "scripts/package_native_gecko_ipa.py").read_text(encoding="utf-8")
+        self.assertIn('"extensions" / "fetchdock"', package)
+        overlay = (ROOT / "option2/tools/apply_client_overlay.py").read_text(encoding="utf-8")
+        self.assertIn("patch_addons(root)", overlay)
+        addons = (ROOT / "option2/Client/GeckoAddons.swift").read_text(encoding="utf-8")
+        # Must match the resource path Reynard's companion build uses.
+        self.assertIn("resource://app/extensions/fetchdock/", addons)
+        engine = (ROOT / "option2/Client/GeckoTabEngine.swift").read_text(encoding="utf-8")
+        self.assertIn("GeckoAddonPackageDownloads.shared.add", engine)
+        self.assertIn("setAddonTabActive", engine)
+
     def test_resume_uses_the_exact_engine_archive_name_and_toolchain(self):
         workflow = RESUME.read_text(encoding="utf-8")
         self.assertIn("Gecko-iOS-arm64-compiled-engine-dist", workflow)

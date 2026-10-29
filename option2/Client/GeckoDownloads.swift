@@ -97,6 +97,15 @@ final class FetchDockDownload: Download, @unchecked Sendable {
         totalBytesExpected = response.contentLength
     }
 
+    /// A link handed over by the FetchDock Companion add-on.
+    init(originWindow: WindowUUID, url: URL) {
+        sourceURL = url
+        requestHeaders = [:]
+        super.init(originWindow: originWindow)
+        filename = url.lastPathComponent.isEmpty ? (url.host ?? "download") : url.lastPathComponent
+        mimeType = MIMEType.OctetStream
+    }
+
     @MainActor
     override func resume() {
         let service = FetchDockService.shared

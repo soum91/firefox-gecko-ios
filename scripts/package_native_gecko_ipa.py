@@ -75,7 +75,7 @@ def set_plist(path: Path, **values: object) -> dict:
 
 def package(app_src: Path, helper_src: Path, framework_src: Path, dist_bin: Path,
             default_theme: Path, output: Path, bundle_id: str, version: str, build: str,
-            missing_report: Path | None = None) -> None:
+            missing_report: Path | None = None, companion: Path | None = None) -> None:
     with tempfile.TemporaryDirectory(prefix="firefox-gecko-ipa-") as temp:
         payload = Path(temp) / "Payload"
         app = payload / "Firefox.app"
@@ -149,6 +149,17 @@ def package(app_src: Path, helper_src: Path, framework_src: Path, dist_bin: Path
                 manifest.write("resource default-theme file:default-theme/\n")
         else:
             print(f"warning: default theme not found at {default_theme}")
+        # Built-in add-on Gecko loads from resource://app/extensions/fetchdock/,
+        # the same place Reynard's companion build compiles it into dist/bin.
+        if companion is not None:
+            target = gecko_frameworks / "extensions" / "fetchdock"
+            target.mkdir(parents=True, exist_ok=True)
+            for file in sorted(companion.iterdir()):
+                if file.is_file() and not file.name.endswith(".md"):
+                    shutil.copy2(file, target / file.name)
+            if not (target / "manifest.json").is_file():
+                raise FileNotFoundError(f"FetchDock Companion manifest missing in {companion}")
+            print(f"bundled FetchDock Companion from {companion}")
 
         plugins = app / "PlugIns"
         plugins.mkdir(exist_ok=True)
@@ -198,7 +209,9 @@ def package(app_src: Path, helper_src: Path, framework_src: Path, dist_bin: Path
         prefix = "Payload/Firefox.app/"
         for required in ("Info.plist", "Frameworks/XUL.dylib",
                          "Frameworks/GeckoView.framework/GeckoView",
-                         "PlugIns/Reynard Helper.appex/Info.plist"):
+                         "PlugIns/Reynard Helper.appex/Info.plist",
+                         *(["Frameworks/GeckoView.framework/Frameworks/extensions/fetchdock/manifest.json"]
+                           if companion is not None else [])):
             if prefix + required not in names:
                 raise ValueError(f"IPA is missing {required}")
         if prefix + "Frameworks/XUL" in names:
@@ -224,12 +237,15 @@ if __name__ == "__main__":
     parser.add_argument("--bundle-id", default="com.soum91.FirefoxNativeGecko")
     parser.add_argument("--version", default="159.0")
     parser.add_argument("--build", required=True)
+    parser.add_argument("--companion", type=Path,
+                        help="Reynard's addons/fetchdock folder, bundled as a built-in add-on")
     parser.add_argument("--missing-report", type=Path,
                         help="write Gecko files skipped because their links dangle")
     args = parser.parse_args()
     try:
         package(args.app, args.helper, args.framework, args.dist_bin, args.default_theme,
-                args.output, args.bundle_id, args.version, args.build, args.missing_report)
+                args.output, args.bundle_id, args.version, args.build, args.missing_report,
+                args.companion)
     except Exception as failure:  # one greppable line for the CI error summary
         import sys
         import traceback

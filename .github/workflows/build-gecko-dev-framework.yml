@@ -320,6 +320,7 @@ jobs:
             --framework "$products/GeckoView.framework" \
             --dist-bin reynard-source/engine/firefox/obj-aarch64-apple-ios/dist/bin \
             --default-theme reynard-source/engine/firefox/toolkit/mozapps/extensions/default-theme \
+            --companion reynard-source/addons/fetchdock \
             --output "$out" --version "159.0.${build}" --build "$build" --missing-report "$RUNNER_TEMP/missing-gecko-files.txt" \
             2>&1 | tee "$RUNNER_TEMP/ipa-package.log"
           echo "path=$out" >> "$GITHUB_OUTPUT"

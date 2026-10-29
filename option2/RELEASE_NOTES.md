@@ -18,6 +18,9 @@ Mozilla's Firefox 159 app (its own UI, tab tray, menus and settings) with web pa
 - Non-web links (tel:, mailto:, App Store) open in iOS
 - Downloads in Firefox's own prompt, toast and Downloads panel: large resumable HTTPS files use FetchDock parallel segmented background downloads (4 connections), everything else keeps Gecko's stream
 - Firefox's download Live Activity (Lock Screen / Dynamic Island), via the kept widget extension
+- Add-ons: Settings > Add-ons lists them (enable, disable, run in private tabs, settings, remove) and links to addons.mozilla.org; tapping Add to Firefox there installs signed add-ons with a permission prompt
+- Menu > Add-ons opens each add-on's toolbar popup (for example uBlock Origin's panel)
+- FetchDock Companion is built in: it lists direct file links on a page and sends them to FetchDock
 
 ## Not working yet in Gecko tabs
 - Anything built on WebKit user scripts: reader mode, find in page, password autofill, page metadata

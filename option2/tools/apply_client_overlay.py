@@ -11,6 +11,9 @@ firefox-v159.0 Client sources in place:
    use AppDelegate.current, because Gecko's delegate is the UIApplication one.
 3. TabWebView renders tabs with Gecko sessions while keeping its WKWebView
    contract (option2/Client/GeckoTabEngine.swift plus property overrides).
+4. Downloads go through Firefox's queue with Reynard's FetchDock engine.
+5. Add-ons: Reynard's WebExtension runtime with a Settings screen and a menu
+   entry (option2/Client/GeckoAddons.swift).
 
 Every edit must match the expected Firefox 159 source exactly once, so source
 drift fails loudly here instead of producing a silently broken app. New code is
@@ -323,6 +326,57 @@ def patch_downloads(root: Path, reynard: Path) -> None:
     print(f"patched {path}")
 
 
+def patch_addons(root: Path) -> None:
+    """Add-ons: Settings > General > Add-ons, a menu entry, and the runtime glue."""
+    path = root / CLIENT / "Frontend/Settings/Main/AppSettingsTableViewController.swift"
+    text = path.read_text(encoding="utf-8")
+    if MARKER in text:
+        raise ValueError(f"{path} already has the overlay")
+    text = add_imports(text, ["import Foundation", "@preconcurrency import GeckoView"], str(path))
+    text = replace_once(
+        text,
+        "        // Toolbar position cannot be changed on iPad\n",
+        f"        {MARKER}: Gecko add-ons\n"
+        "        if GeckoTabEngine.isEnabled {\n"
+        "            generalSettings.insert(GeckoAddonsSetting(theme: currentTheme()), at: 0)\n"
+        "        }\n\n"
+        "        // Toolbar position cannot be changed on iPad\n",
+        str(path),
+    )
+    text = text.rstrip("\n") + f"\n\n{MARKER}\n" + unlinted(overlay_body("GeckoAddons.swift")) + "\n"
+    path.write_text(text, encoding="utf-8")
+    print(f"patched {path}")
+
+    path = root / CLIENT / "Frontend/Browser/MainMenu/MainMenuConfigurationUtility.swift"
+    text = path.read_text(encoding="utf-8")
+    text = replace_once(
+        text,
+        "        options.append(configureUserAgentItem(with: uuid, tabInfo: tabInfo))\n",
+        "        options.append(configureUserAgentItem(with: uuid, tabInfo: tabInfo))\n"
+        f"        {MARKER}: Gecko add-ons\n"
+        "        if GeckoTabEngine.isEnabled {\n"
+        "            options.append(MenuElement(\n"
+        "                title: \"Add-ons\",\n"
+        "                iconName: Icons.lightning,\n"
+        "                isEnabled: true,\n"
+        "                isActive: false,\n"
+        "                a11yLabel: \"Add-ons\",\n"
+        "                a11yHint: \"\",\n"
+        "                a11yId: \"firefoxGeckoAddons\",\n"
+        "                action: {\n"
+        "                    store.dispatch(MainMenuAction(windowUUID: uuid, actionType: MainMenuActionType.tapCloseMenu))\n"
+        "                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {\n"
+        "                        GeckoAddonManager.shared.presentMenu()\n"
+        "                    }\n"
+        "                }\n"
+        "            ))\n"
+        "        }\n",
+        str(path),
+    )
+    path.write_text(text, encoding="utf-8")
+    print(f"patched {path}")
+
+
 def apply(root: Path, reynard: Path) -> None:
     root = root.resolve()
     if not (root / CLIENT / "TabManagement/TabWebView.swift").is_file():
@@ -334,6 +388,7 @@ def apply(root: Path, reynard: Path) -> None:
     patch_tab_webview(root)
     patch_empty_onboarding(root)
     patch_downloads(root, reynard.resolve())
+    patch_addons(root)
 
 
 if __name__ == "__main__":
