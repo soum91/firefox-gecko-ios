@@ -71,6 +71,20 @@ class GeckoArtifactWorkflowTests(unittest.TestCase):
             self.assertIn("geckoview-client-swift-flags.sh", workflow, path.name)
             self.assertIn("OTHER_SWIFT_FLAGS='$(inherited)'", workflow, path.name)
 
+    def test_firefox_app_ipa_has_build_number_and_changelog(self):
+        workflow = BUILD.read_text(encoding="utf-8")
+        self.assertIn("apply_client_overlay.py firefox-source", workflow)
+        self.assertIn("-scheme Fennec", workflow)
+        self.assertIn("Firefox-Gecko-Native-159.0-build-${build}.ipa", workflow)
+        self.assertIn("--build \"$build\"", workflow)
+        self.assertIn("## Changes in build ${build}", workflow)
+        self.assertIn("--prerelease --latest=false", workflow)
+        # The app needs Gecko's child-process extension at this exact path.
+        self.assertIn('-target "Reynard Helper"', workflow)
+        # The app overlay is applied only after BrowserKit has GeckoView.
+        self.assertLess(workflow.index("apply_overlay.py firefox-source"),
+                        workflow.index("apply_client_overlay.py firefox-source"))
+
     def test_resume_uses_the_exact_engine_archive_name_and_toolchain(self):
         workflow = RESUME.read_text(encoding="utf-8")
         self.assertIn("Gecko-iOS-arm64-compiled-engine-dist", workflow)

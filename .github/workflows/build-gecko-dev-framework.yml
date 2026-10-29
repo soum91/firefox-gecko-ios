@@ -5,6 +5,8 @@ on:
     paths:
       - .github/workflows/build-gecko-dev-framework.yml
       - .github/scripts/**
+      - option2/**
+      - scripts/package_native_gecko_ipa.py
   workflow_dispatch:
     inputs:
       force_engine_rebuild:
@@ -12,7 +14,8 @@ on:
         type: boolean
         default: false
 permissions:
-  contents: read
+  # contents: write publishes the IPA as a prerelease.
+  contents: write
   actions: read
 # A push while Gecko is compiling waits for that run instead of starting a
 # second multi-hour compile. When it starts, the engine is already cached.
@@ -254,13 +257,103 @@ jobs:
             -derivedDataPath "$RUNNER_TEMP/firefox-gecko-dev" \
             CODE_SIGNING_ALLOWED=NO OTHER_SWIFT_FLAGS='$(inherited)'" $gecko_flags" \
             build 2>&1 | tee "$RUNNER_TEMP/firefox-webengine-dev-build.log"
+      - name: Build Reynard Gecko child-process helper extension
+        timeout-minutes: 20
+        working-directory: reynard-source
+        run: |
+          set -o pipefail
+          # Gecko launches its content process from PlugIns/Reynard Helper.appex.
+          xcodebuild -project browser/Reynard.xcodeproj -target "Reynard Helper" \
+            -configuration Release -sdk iphoneos -arch arm64 \
+            SYMROOT="$RUNNER_TEMP/reynard-gecko-dev/Build/Products" \
+            BUILD_LIBRARY_FOR_DISTRIBUTION=NO \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            build 2>&1 | tee "$RUNNER_TEMP/gecko-helper-build.log"
+          test -d "$RUNNER_TEMP/reynard-gecko-dev/Build/Products/Release-iphoneos/Reynard Helper.appex"
+      - name: Bootstrap Firefox app build tools
+        timeout-minutes: 25
+        working-directory: firefox-source
+        run: |
+          set -o pipefail
+          bash ./bootstrap.sh firefox 2>&1 | tee "$RUNNER_TEMP/firefox-bootstrap.log"
+      - name: Run Firefox on Gecko (startup and tab rendering overlay)
+        run: python3 option2/tools/apply_client_overlay.py firefox-source
+      - name: Build Firefox 159 app with Gecko tabs
+        timeout-minutes: 100
+        working-directory: firefox-source
+        run: |
+          set -o pipefail
+          gecko_flags=$(bash "$GITHUB_WORKSPACE/.github/scripts/geckoview-client-swift-flags.sh" "$GITHUB_WORKSPACE/reynard-source")
+          framework=$(find "$RUNNER_TEMP/GeckoView-dev.xcframework" -maxdepth 2 -name GeckoView.framework -type d | head -n 1)
+          test -n "$framework"
+          slice=$(dirname "$framework")
+          echo "GeckoView client flags: $gecko_flags -F $slice"
+          xcodebuild -skipMacroValidation -project firefox-ios/Client.xcodeproj -scheme Fennec \
+            -configuration Debug -destination 'generic/platform=iOS' -sdk iphoneos \
+            -derivedDataPath "$RUNNER_TEMP/firefox-app" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            OTHER_SWIFT_FLAGS='$(inherited)'" $gecko_flags -F $slice" \
+            build 2>&1 | tee "$RUNNER_TEMP/firefox-app-build.log"
+      - name: Package Firefox Gecko IPA
+        id: ipa
+        run: |
+          set -euo pipefail
+          app=$(find "$RUNNER_TEMP/firefox-app/Build/Products" -path '*-iphoneos/Client.app' -type d | head -n 1)
+          test -n "$app"
+          build="${{ github.run_number }}"
+          products="$RUNNER_TEMP/reynard-gecko-dev/Build/Products/Release-iphoneos"
+          out="$RUNNER_TEMP/ipa/Firefox-Gecko-Native-159.0-build-${build}.ipa"
+          python3 scripts/package_native_gecko_ipa.py --app "$app" \
+            --helper "$products/Reynard Helper.appex" \
+            --framework "$products/GeckoView.framework" \
+            --dist-bin reynard-source/engine/firefox/obj-aarch64-apple-ios/dist/bin \
+            --default-theme reynard-source/engine/firefox/toolkit/mozapps/extensions/default-theme \
+            --output "$out" --build "$build" 2>&1 | tee "$RUNNER_TEMP/ipa-package.log"
+          echo "path=$out" >> "$GITHUB_OUTPUT"
+      - name: Upload Firefox Gecko IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Firefox-Gecko-Native-159.0-build-${{ github.run_number }}
+          path: ${{ steps.ipa.outputs.path }}
+          compression-level: 0
+          retention-days: 14
+          if-no-files-found: error
+      - name: Publish prerelease with build number and changelog
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IPA: ${{ steps.ipa.outputs.path }}
+        run: |
+          set -euo pipefail
+          build="${{ github.run_number }}"
+          tag="native-gecko-159.0-build-${build}"
+          previous=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=50" \
+            --jq '[.[] | select(.tag_name | startswith("native-gecko-"))][0].target_commitish // empty')
+          {
+            cat option2/RELEASE_NOTES.md
+            echo
+            echo "## Changes in build ${build}"
+            if [ -n "$previous" ]; then
+              gh api "repos/$GITHUB_REPOSITORY/compare/${previous}...${GITHUB_SHA}" \
+                --jq '.commits[] | "- " + (.commit.message | split("\n")[0]) + " (" + .sha[0:7] + ")"'
+            else
+              gh api "repos/$GITHUB_REPOSITORY/commits?sha=${GITHUB_SHA}&per_page=12" \
+                --jq '.[] | "- " + (.commit.message | split("\n")[0]) + " (" + .sha[0:7] + ")"'
+            fi
+          } > "$RUNNER_TEMP/release-notes.md"
+          gh release create "$tag" "$IPA" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Firefox Gecko native 159.0 (build ${build})" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" --prerelease --latest=false
       - name: Show the real compiler errors on the run page
         if: failure()
         run: |
           bash .github/scripts/surface-build-errors.sh \
             "$RUNNER_TEMP/gecko-build.log" \
             "$RUNNER_TEMP/geckoview-dev-build.log" \
-            "$RUNNER_TEMP/firefox-webengine-dev-build.log"
+            "$RUNNER_TEMP/firefox-webengine-dev-build.log" \
+            "$RUNNER_TEMP/gecko-helper-build.log" \
+            "$RUNNER_TEMP/firefox-bootstrap.log" \
+            "$RUNNER_TEMP/firefox-app-build.log" \
+            "$RUNNER_TEMP/ipa-package.log"
       - name: Trim Gecko compile log for upload
         if: always()
         run: |
@@ -276,5 +369,9 @@ jobs:
             ${{ runner.temp }}/gecko-build-tail.log
             ${{ runner.temp }}/geckoview-dev-build.log
             ${{ runner.temp }}/firefox-webengine-dev-build.log
+            ${{ runner.temp }}/gecko-helper-build.log
+            ${{ runner.temp }}/firefox-bootstrap.log
+            ${{ runner.temp }}/firefox-app-build.log
+            ${{ runner.temp }}/ipa-package.log
           if-no-files-found: warn
           retention-days: 14
