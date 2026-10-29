@@ -1,6 +1,6 @@
 Mozilla's Firefox 159 app (its own UI, tab tray, menus and settings) with web pages rendered by the Reynard Gecko engine instead of WebKit.
 
-**Test build. Not verified on a device yet.** Not published to FlareStore. The IPA is unsigned: re-sign it with your certificate so that `Frameworks/XUL.dylib`, `Frameworks/GeckoView.framework` and `PlugIns/Reynard Helper.appex` are signed too, or Gecko cannot start its content process.
+**Test build.** Also listed in the FlareStore feed as "Firefox Gecko (Native UI)". The IPA is unsigned: re-sign it with your certificate so that `Frameworks/XUL.dylib`, `Frameworks/GeckoView.framework` and `PlugIns/Reynard Helper.appex` are signed too, or Gecko cannot start its content process.
 
 ## How it is put together
 - Firefox starts through `GeckoRuntime.main`; Gecko's app delegate forwards to Firefox's `AppDelegate`, so Firefox's own startup still runs.

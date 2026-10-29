@@ -261,6 +261,35 @@ def patch_tab_webview(root: Path) -> None:
     print(f"patched {path}")
 
 
+def patch_empty_onboarding(root: Path) -> None:
+    """Skip onboarding when Firefox gets no cards.
+
+    The cards depend on Nimbus' messaging helper. When it cannot be created,
+    Firefox returns no cards but still presents the flow, and its Skip button
+    ignores taps on an empty flow, leaving the app stuck on the background.
+    """
+    path = root / CLIENT / "Coordinators/Launch/LaunchCoordinator.swift"
+    text = path.read_text(encoding="utf-8")
+    text = replace_once(
+        text,
+        "            for: .freshInstall\n"
+        "        )\n"
+        "        let activityEventHelper = ActivityEventHelper()\n",
+        "            for: .freshInstall\n"
+        "        )\n"
+        f"        {MARKER}: no cards means a stuck, unskippable onboarding.\n"
+        "        if onboardingModel.cards.isEmpty {\n"
+        "            manager.didSeeIntroScreen()\n"
+        "            parentCoordinator?.didFinishLaunch(from: self)\n"
+        "            return\n"
+        "        }\n"
+        "        let activityEventHelper = ActivityEventHelper()\n",
+        str(path),
+    )
+    path.write_text(text, encoding="utf-8")
+    print(f"patched {path}")
+
+
 def apply(root: Path) -> None:
     root = root.resolve()
     if not (root / CLIENT / "TabManagement/TabWebView.swift").is_file():
@@ -270,6 +299,7 @@ def apply(root: Path) -> None:
     patch_app_delegate_lookups(root)
     patch_main(root)
     patch_tab_webview(root)
+    patch_empty_onboarding(root)
 
 
 if __name__ == "__main__":

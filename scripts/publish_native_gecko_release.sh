@@ -82,3 +82,27 @@ if ! output=$(gh release upload "$tag" "$ipa" --repo "$repo" --clobber 2>&1); th
   fail "uploading $(basename "$ipa"): $(echo "$output" | tr '\n' ' ')"
 fi
 echo "Published https://github.com/$repo/releases/tag/$tag"
+
+# List the build in the FlareStore feed (source.json on the default branch).
+url="https://github.com/$repo/releases/download/$tag/$(basename "$ipa")"
+size=$(wc -c < "$ipa" | tr -d ' ')
+summary=$(sed -n '1p' option2/RELEASE_NOTES.md)
+feed=$(mktemp -d)
+git clone -q --depth 1 --branch "$default_branch" \
+  "https://x-access-token:${GH_TOKEN}@github.com/${repo}.git" "$feed" || fail "could not clone $default_branch for the feed"
+python3 scripts/update_flarestore_native.py "$feed/source.json" --version "159.0.${build}" --build "$build" \
+  --url "$url" --size "$size" --date "$(date -u +%Y-%m-%d)" \
+  --notes "Build ${build}. ${summary} Re-sign everything, including XUL.dylib, GeckoView.framework and Reynard Helper.appex." \
+  || fail "could not update source.json"
+(
+  cd "$feed" || exit 1
+  git config user.name "github-actions[bot]"
+  git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+  git commit -qam "Index Firefox Gecko (Native UI) build ${build} in FlareStore" || exit 0
+  for _ in 1 2 3; do
+    git push -q origin "HEAD:$default_branch" && exit 0
+    git pull -q --rebase origin "$default_branch"
+  done
+  exit 1
+) || fail "could not push the FlareStore feed update"
+echo "FlareStore feed lists build ${build}"
