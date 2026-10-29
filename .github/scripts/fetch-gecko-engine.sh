@@ -22,30 +22,19 @@ CONTENT_KEY="${4:-}"
 ENGINE_REPO="${ENGINE_REPO:-soum91/reynard-browser}"
 ENGINE_TAG="gecko-engine"
 ARTIFACT="Gecko-iOS-arm64-compiled-engine-dist"
-WORKFLOW_PATH=".github/workflows/build-gecko-dev-framework.yml"
 REPO="$GITHUB_REPOSITORY"
 MAX_WAIT_MINUTES="${MAX_WAIT_MINUTES:-150}"
 POLL_SECONDS=180
 
 mkdir -p "$OUT"
+echo "Looking for Gecko engine $KEY (Reynard $REYNARD_REF)"
 
 finish() {
   echo "found=$1" >> "$GITHUB_OUTPUT"
   exit 0
 }
 
-# An archive is usable if its embedded key matches. Archives made before keys
-# existed are accepted only if the run that made them pinned the same Reynard
-# commit, which fixes the Gecko release tag and patches.
-legacy_run_matches() {
-  local run_id="$1" sha path content
-  path=$(gh api "repos/$REPO/actions/runs/$run_id" --jq .path 2>/dev/null) || return 1
-  [ "$path" = "$WORKFLOW_PATH" ] || return 1
-  sha=$(gh api "repos/$REPO/actions/runs/$run_id" --jq .head_sha 2>/dev/null) || return 1
-  content=$(gh api "repos/$REPO/contents/$WORKFLOW_PATH?ref=$sha" --jq .content 2>/dev/null | base64 --decode 2>/dev/null) || return 1
-  grep -q "$REYNARD_REF" <<<"$content"
-}
-
+# An archive is usable only if its embedded key matches this run's key.
 try_artifacts() {
   local runs run_id tmp archive embedded
   runs=$(gh api "repos/$REPO/actions/artifacts?name=$ARTIFACT&per_page=30" \
@@ -60,13 +49,9 @@ try_artifacts() {
     archive="$tmp/gecko-engine-dist.tar.gz"
     if [ ! -s "$archive" ]; then rm -rf "$tmp"; continue; fi
     embedded=$(tar -xzOf "$archive" reynard-engine-key.txt 2>/dev/null || true)
-    if [ -n "$embedded" ]; then
-      if [ "$embedded" != "$KEY" ]; then
-        echo "Run $run_id was built for $embedded, need $KEY"
-        rm -rf "$tmp"; continue
-      fi
-    elif ! legacy_run_matches "$run_id"; then
-      echo "Run $run_id predates engine keys and used a different Reynard pin"
+    # Only keyed archives: unkeyed ones predate v2 and keep dangling links.
+    if [ "$embedded" != "$KEY" ]; then
+      echo "Run $run_id was built for ${embedded:-an unkeyed v1 engine}, need $KEY"
       rm -rf "$tmp"; continue
     fi
     mv "$archive" "$OUT/gecko-engine-dist.tar.gz"

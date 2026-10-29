@@ -26,7 +26,8 @@ env:
   REYNARD_REF: 55eecc5b63114b0072bf14bd4c55acec01e3a40a
   XCODE_VERSION: '26.5'
   # Bump only when the Gecko build flags or the archive layout change.
-  ENGINE_SCHEMA: v1
+  # v2: links in dist/ are resolved, so the archive is self-contained.
+  ENGINE_SCHEMA: v2
 jobs:
   framework-and-firefox:
     runs-on: macos-26
@@ -163,7 +164,17 @@ jobs:
           # The key file lets later runs prove the archive matches their pin.
           echo "${{ steps.engine-key.outputs.key }}" > "$obj/reynard-engine-key.txt"
           mkdir -p "$RUNNER_TEMP/gecko-engine"
-          tar -C "$obj" -czf "$RUNNER_TEMP/gecko-engine/gecko-engine-dist.tar.gz" reynard-engine-key.txt dist
+          # dist/ is full of links into the source and the rest of the build
+          # tree. Resolve them (-h) so the archive works on its own: v1 kept
+          # the links and four runtime files dangled after a restore. A link
+          # with no target only warns; the checks below decide.
+          if ! tar -C "$obj" -czhf "$RUNNER_TEMP/gecko-engine/gecko-engine-dist.tar.gz" \
+              reynard-engine-key.txt dist 2> "$RUNNER_TEMP/engine-tar-warnings.txt"; then
+            head -n 20 "$RUNNER_TEMP/engine-tar-warnings.txt"
+          fi
+          gzip -t "$RUNNER_TEMP/gecko-engine/gecko-engine-dist.tar.gz"
+          tar -tzf "$RUNNER_TEMP/gecko-engine/gecko-engine-dist.tar.gz" | grep -q '^dist/bin/chrome.manifest$'
+          tar -tzf "$RUNNER_TEMP/gecko-engine/gecko-engine-dist.tar.gz" | grep -q '^dist/bin/default.locale$'
           test -s "$RUNNER_TEMP/gecko-engine/gecko-engine-dist.tar.gz"
           shasum -a 256 "$RUNNER_TEMP/gecko-engine/gecko-engine-dist.tar.gz"
       - name: Cache compiled Gecko engine immediately
