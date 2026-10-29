@@ -308,7 +308,8 @@ jobs:
             --framework "$products/GeckoView.framework" \
             --dist-bin reynard-source/engine/firefox/obj-aarch64-apple-ios/dist/bin \
             --default-theme reynard-source/engine/firefox/toolkit/mozapps/extensions/default-theme \
-            --output "$out" --build "$build" 2>&1 | tee "$RUNNER_TEMP/ipa-package.log"
+            --output "$out" --build "$build" --missing-report "$RUNNER_TEMP/missing-gecko-files.txt" \
+            2>&1 | tee "$RUNNER_TEMP/ipa-package.log"
           echo "path=$out" >> "$GITHUB_OUTPUT"
       - name: Upload Firefox Gecko IPA
         uses: actions/upload-artifact@v4
@@ -331,6 +332,12 @@ jobs:
           {
             cat option2/RELEASE_NOTES.md
             echo
+            if [ -s "$RUNNER_TEMP/missing-gecko-files.txt" ]; then
+              echo "## Gecko files missing from this build"
+              echo "These generated Gecko files were not in the cached engine, so this build lacks them:"
+              sed 's/^/- /' "$RUNNER_TEMP/missing-gecko-files.txt"
+              echo
+            fi
             echo "## Changes in build ${build}"
             if [ -n "$previous" ]; then
               gh api "repos/$GITHUB_REPOSITORY/compare/${previous}...${GITHUB_SHA}" \

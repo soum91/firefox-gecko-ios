@@ -47,9 +47,17 @@ def is_macho(path: Path) -> bool:
 
 
 def copy_resolved(src: Path, dest: Path) -> None:
-    """Copy following symlinks, like AddGecko.sh's cp -L / rsync -L."""
+    """Copy following symlinks, like AddGecko.sh's cp -L / rsync -L.
+
+    Links whose target is gone are skipped; package() reports them.
+    """
+    if src.is_symlink() and not src.exists():
+        return
     if src.is_dir():
-        shutil.copytree(src, dest, symlinks=False, dirs_exist_ok=True)
+        shutil.copytree(src, dest, symlinks=False, dirs_exist_ok=True,
+                        ignore=lambda folder, names: [
+                            n for n in names
+                            if (Path(folder) / n).is_symlink() and not (Path(folder) / n).exists()])
     else:
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dest, follow_symlinks=True)
@@ -65,7 +73,8 @@ def set_plist(path: Path, **values: object) -> dict:
 
 
 def package(app_src: Path, helper_src: Path, framework_src: Path, dist_bin: Path,
-            default_theme: Path, output: Path, bundle_id: str, version: str, build: str) -> None:
+            default_theme: Path, output: Path, bundle_id: str, version: str, build: str,
+            missing_report: Path | None = None) -> None:
     with tempfile.TemporaryDirectory(prefix="firefox-gecko-ipa-") as temp:
         payload = Path(temp) / "Payload"
         app = payload / "Firefox.app"
@@ -102,10 +111,10 @@ def package(app_src: Path, helper_src: Path, framework_src: Path, dist_bin: Path
         dangling = sorted(str(p.relative_to(dist_bin)) for p in dist_bin.rglob("*")
                           if p.is_symlink() and not p.exists())
         if dangling:
-            sample = ", ".join(dangling[:12])
-            raise FileNotFoundError(
-                f"{len(dangling)} dangling links in Gecko dist/bin (engine archive lacks their "
-                f"targets): {sample}")
+            print(f"warning: skipping {len(dangling)} Gecko files whose links dangle in the "
+                  f"cached engine: {', '.join(dangling)}")
+        if missing_report:
+            missing_report.write_text("".join(f"{d}\n" for d in dangling), encoding="utf-8")
         xul = dist_bin / "XUL"
         print(f"dist/bin: {len(list(dist_bin.iterdir()))} entries; XUL symlink={xul.is_symlink()} "
               f"resolves={xul.exists()}" + (f" -> {xul.resolve()}" if xul.is_symlink() else ""))
@@ -179,8 +188,10 @@ def package(app_src: Path, helper_src: Path, framework_src: Path, dist_bin: Path
                 raise ValueError(f"IPA is missing {required}")
         if prefix + "Frameworks/XUL" in names:
             raise ValueError("IPA still contains the unrenamed XUL")
-        if not any(n.startswith(prefix + "Frameworks/GeckoView.framework/Frameworks/omni") for n in names):
-            raise ValueError("IPA is missing Gecko's omni.ja runtime resources")
+        # Developer Gecko builds ship loose chrome files rather than omni.ja.
+        runtime = prefix + "Frameworks/GeckoView.framework/Frameworks/"
+        if runtime + "chrome.manifest" not in names or not any(n.startswith(runtime + "chrome/") for n in names):
+            raise ValueError("IPA is missing Gecko's runtime resources (chrome.manifest, chrome/)")
         built = plistlib.loads(archive.read(prefix + "Info.plist"))
         if built["CFBundleVersion"] != build:
             raise ValueError("IPA build number mismatch")
@@ -198,10 +209,12 @@ if __name__ == "__main__":
     parser.add_argument("--bundle-id", default="com.soum91.FirefoxNativeGecko")
     parser.add_argument("--version", default="159.0")
     parser.add_argument("--build", required=True)
+    parser.add_argument("--missing-report", type=Path,
+                        help="write Gecko files skipped because their links dangle")
     args = parser.parse_args()
     try:
         package(args.app, args.helper, args.framework, args.dist_bin, args.default_theme,
-                args.output, args.bundle_id, args.version, args.build)
+                args.output, args.bundle_id, args.version, args.build, args.missing_report)
     except Exception as failure:  # one greppable line for the CI error summary
         import sys
         import traceback
