@@ -289,7 +289,7 @@ jobs:
           set -o pipefail
           bash ./bootstrap.sh firefox 2>&1 | tee "$RUNNER_TEMP/firefox-bootstrap.log"
       - name: Run Firefox on Gecko (startup and tab rendering overlay)
-        run: python3 option2/tools/apply_client_overlay.py firefox-source
+        run: python3 option2/tools/apply_client_overlay.py firefox-source reynard-source
       - name: Build Firefox 159 app with Gecko tabs
         timeout-minutes: 100
         working-directory: firefox-source

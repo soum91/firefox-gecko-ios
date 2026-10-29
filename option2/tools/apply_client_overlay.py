@@ -290,7 +290,30 @@ def patch_empty_onboarding(root: Path) -> None:
     print(f"patched {path}")
 
 
-def apply(root: Path) -> None:
+def patch_downloads(root: Path, reynard: Path) -> None:
+    """Gecko downloads in Firefox's queue, with Reynard's FetchDock engine."""
+    path = root / CLIENT / "Frontend/Browser/DownloadHelper/Download.swift"
+    text = path.read_text(encoding="utf-8")
+    if MARKER in text:
+        raise ValueError(f"{path} already has the overlay")
+    engine_path = reynard / "browser/Reynard/Client/Stores/FetchDockTransferEngine.swift"
+    engine = engine_path.read_text(encoding="utf-8")
+    # Swift 5 code: all mutable state is confined to its serial queue.
+    engine = replace_once(
+        engine,
+        "final class FetchDockTransferEngine: NSObject, URLSessionDownloadDelegate {",
+        "final class FetchDockTransferEngine: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {",
+        str(engine_path),
+    )
+    engine_body = "\n".join(line for line in engine.split("\n") if not re.match(r"^(@\w+ )*import ", line))
+    text = add_imports(text, ["import Foundation", "import UIKit", "@preconcurrency import GeckoView"], str(path))
+    text = (text.rstrip("\n") + f"\n\n{MARKER}: Reynard's FetchDockTransferEngine (soum91/reynard-browser)\n"
+            + engine_body.strip("\n") + f"\n\n{MARKER}\n" + overlay_body("GeckoDownloads.swift") + "\n")
+    path.write_text(text, encoding="utf-8")
+    print(f"patched {path}")
+
+
+def apply(root: Path, reynard: Path) -> None:
     root = root.resolve()
     if not (root / CLIENT / "TabManagement/TabWebView.swift").is_file():
         raise ValueError(f"{root} is not a firefox-ios v159.0 checkout")
@@ -300,9 +323,13 @@ def apply(root: Path) -> None:
     patch_main(root)
     patch_tab_webview(root)
     patch_empty_onboarding(root)
+    patch_downloads(root, reynard.resolve())
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("firefox_source", type=Path)
-    apply(parser.parse_args().firefox_source)
+    parser.add_argument("reynard_source", type=Path,
+                        help="Reynard checkout providing FetchDockTransferEngine.swift")
+    arguments = parser.parse_args()
+    apply(arguments.firefox_source, arguments.reynard_source)

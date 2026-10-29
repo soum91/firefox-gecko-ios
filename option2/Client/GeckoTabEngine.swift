@@ -185,6 +185,15 @@ final class GeckoTabEngine {
         session.load(uri)
     }
 
+    /// Firefox's download prompt; `decide` tells Gecko whether to keep streaming.
+    fileprivate func offerDownload(_ response: ExternalResponseInfo, decide: @escaping (Bool) -> Void) {
+        guard let host, let browser = host.navigationDelegate as? BrowserViewController else {
+            decide(false)
+            return
+        }
+        browser.presentGeckoDownload(response, isPrivate: isPrivate, from: host, decide: decide)
+    }
+
     /// A crashed or killed content process leaves the session unusable:
     /// reopen it and reload the page the tab was showing.
     fileprivate func recoverFromContentProcessLoss() {
@@ -292,5 +301,22 @@ final class GeckoTabDelegateBridge: ProgressDelegate, NavigationDelegate, Conten
 
     func onKill(session: GeckoSession) {
         onMain { $0.recoverFromContentProcessLoss() }
+    }
+
+    func onExternalResponse(session: GeckoSession, response: ExternalResponseInfo) async -> Bool {
+        await withCheckedContinuation { continuation in
+            onMain { engine in
+                engine.offerDownload(response) { continuation.resume(returning: $0) }
+            }
+        }
+    }
+
+    func onExternalResponseProgress(session: GeckoSession, localFilePath: String, bytesReceived: Int64) -> Bool {
+        GeckoStreamRegistry.shared.download(at: localFilePath)?.received(totalBytes: bytesReceived) ?? false
+    }
+
+    func onExternalResponseComplete(session: GeckoSession, localFilePath: String, succeeded: Bool) {
+        guard let download = GeckoStreamRegistry.shared.remove(localFilePath) else { return }
+        Task { @MainActor in download.complete(succeeded: succeeded) }
     }
 }

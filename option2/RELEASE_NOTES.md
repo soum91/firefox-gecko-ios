@@ -16,13 +16,15 @@ Mozilla's Firefox 159 app (its own UI, tab tray, menus and settings) with web pa
 - Tabs restored across launches from Gecko session state
 - Recovering a tab whose Gecko content process crashed
 - Non-web links (tel:, mailto:, App Store) open in iOS
+- Downloads in Firefox's own prompt, toast and Downloads panel: large resumable HTTPS files use FetchDock parallel segmented background downloads (4 connections), everything else keeps Gecko's stream
+- Firefox's download Live Activity (Lock Screen / Dynamic Island), via the kept widget extension
 
 ## Not working yet in Gecko tabs
 - Anything built on WebKit user scripts: reader mode, find in page, password autofill, page metadata
 - Long-press back/forward history list, tab thumbnails in the tab tray
 - Hiding the toolbars on scroll, pull to refresh
 - Firefox's link context menu (long-press on links)
-- Downloads, and links that open a new window (they load in the current tab)
+- Links that open a new window (they load in the current tab)
 - Firefox's own error and session-restore pages (Gecko shows its own error pages)
-- Firefox's widgets, share sheet and other app extensions are removed from this IPA
+- Firefox's share sheet and other app extensions are removed from this IPA (only the widget extension is kept, for the download Live Activity)
 - JIT: JavaScript runs on the interpreter only

@@ -20,6 +20,7 @@ jobs:
           swiftc -frontend -parse option2/BrowserKit/WebEngine/ReynardGeckoEngine.swift
           swiftc -frontend -parse option2/Client/GeckoFirefoxBootstrap.swift
           swiftc -frontend -parse option2/Client/GeckoTabEngine.swift
+          swiftc -frontend -parse option2/Client/GeckoDownloads.swift
           python3 -m py_compile option2/tools/apply_client_overlay.py scripts/package_native_gecko_ipa.py
       - name: Prevent Firefox IPA upload
         run: |

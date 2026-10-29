@@ -240,6 +240,22 @@ enum SideloadAppGroupFallback {
 }
 
 extension AppDelegate {
+    /// FetchDock's background URLSession relaunches the app to finish segments.
+    @objc(application:handleEventsForBackgroundURLSession:completionHandler:)
+    func application(
+        _ application: UIApplication,
+        handleEventsForBackgroundURLSession identifier: String,
+        completionHandler: @escaping () -> Void
+    ) {
+        guard identifier == FetchDockService.sessionIdentifier else {
+            completionHandler()
+            return
+        }
+        FetchDockService.shared.handleBackgroundEvents(completionHandler)
+    }
+}
+
+extension AppDelegate {
     /// Firefox's AppDelegate, whether it is the UIApplication delegate itself
     /// (WebKit mode, tests) or sits behind Gecko's AppShellDelegate.
     static var current: AppDelegate? {

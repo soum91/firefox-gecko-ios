@@ -32,6 +32,7 @@ MACHO_MAGICS = {bytes.fromhex("cffaedfe"), bytes.fromhex("cafebabe")}
 OLD_XUL = "@rpath/XUL"
 NEW_XUL = "@rpath/XUL.dylib"
 SKIP_DIST = ("Test", "test_")
+KEEP_PLUGINS = {"WidgetKitExtension.appex"}
 
 
 def run(*cmd: object) -> None:
@@ -89,12 +90,25 @@ def package(app_src: Path, helper_src: Path, framework_src: Path, dist_bin: Path
         )
         executable = info["CFBundleExecutable"]
 
-        # Firefox's extensions are not needed to browse and each costs an App ID.
+        # Firefox's extensions each cost an App ID when sideloading. Keep only the
+        # widget extension, which draws Firefox's download Live Activity.
+        kept = []
         for folder in ("PlugIns", "Extensions", "Watch"):
-            removed = sorted(p.name for p in (app / folder).glob("*")) if (app / folder).exists() else []
-            if removed:
-                print(f"removing {folder}: {', '.join(removed)}")
-            shutil.rmtree(app / folder, ignore_errors=True)
+            for item in sorted((app / folder).glob("*")) if (app / folder).exists() else []:
+                if folder == "PlugIns" and item.name in KEEP_PLUGINS:
+                    kept.append(item.name)
+                    continue
+                print(f"removing {folder}/{item.name}")
+                shutil.rmtree(item, ignore_errors=True)
+        for name in kept:
+            extension = app / "PlugIns" / name
+            set_plist(
+                extension / "Info.plist",
+                CFBundleIdentifier=f"{bundle_id}.{Path(name).stem}",
+                CFBundleShortVersionString=version,
+                CFBundleVersion=build,
+            )
+            print(f"keeping PlugIns/{name}")
 
         frameworks = app / "Frameworks"
         frameworks.mkdir(exist_ok=True)
@@ -137,7 +151,7 @@ def package(app_src: Path, helper_src: Path, framework_src: Path, dist_bin: Path
             print(f"warning: default theme not found at {default_theme}")
 
         plugins = app / "PlugIns"
-        plugins.mkdir()
+        plugins.mkdir(exist_ok=True)
         helper = plugins / "Reynard Helper.appex"
         shutil.copytree(helper_src, helper, symlinks=True)
         # A sideloaded extension must sit under the app's bundle ID.
@@ -166,7 +180,8 @@ def package(app_src: Path, helper_src: Path, framework_src: Path, dist_bin: Path
             run("codesign", "--force", "--sign", "-", "--timestamp=none", binary)
         for bundle in sorted(frameworks.glob("*.framework")):
             run("codesign", "--force", "--sign", "-", "--timestamp=none", bundle)
-        run("codesign", "--force", "--sign", "-", "--timestamp=none", helper)
+        for extension in sorted(plugins.glob("*.appex")):
+            run("codesign", "--force", "--sign", "-", "--timestamp=none", extension)
         run("codesign", "--force", "--sign", "-", "--timestamp=none", app)
         for binary in (app / executable, frameworks / "XUL.dylib", geckoview / "GeckoView",
                        helper / helper_executable):
