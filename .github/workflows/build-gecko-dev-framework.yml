@@ -69,6 +69,39 @@ jobs:
           CXX: clang++
           LD: ld64.lld
         run: ./tools/development/build-gecko.sh --use-sccache --auto-clobber
+      - name: Preserve compiled Gecko engine before framework work
+        id: archive-gecko
+        timeout-minutes: 25
+        run: |
+          set -euo pipefail
+          obj="$GITHUB_WORKSPACE/reynard-source/engine/firefox/obj-aarch64-apple-ios"
+          test -d "$obj/dist"
+          # Preserve the complete dist tree, including headers and symlinks.
+          # The archive is a build snapshot, not a stand-alone iOS framework.
+          find "$obj/dist" -type f \( -iname '*xul*' -o -name 'libmozglue*' \) -print \
+            | tee "$RUNNER_TEMP/gecko-engine-binaries.txt"
+          test -s "$RUNNER_TEMP/gecko-engine-binaries.txt"
+          du -sh "$obj/dist"
+          tar -C "$obj" -czf "$RUNNER_TEMP/gecko-engine-dist.tar.gz" dist
+          test -s "$RUNNER_TEMP/gecko-engine-dist.tar.gz"
+          shasum -a 256 "$RUNNER_TEMP/gecko-engine-dist.tar.gz"
+      - name: Upload compiled Gecko engine (independent of GeckoView)
+        id: upload-gecko
+        uses: actions/upload-artifact@v4
+        with:
+          name: Gecko-iOS-arm64-compiled-engine-dist
+          path: ${{ runner.temp }}/gecko-engine-dist.tar.gz
+          compression-level: 0
+          retention-days: 14
+          if-no-files-found: error
+      - name: Salvage Gecko engine files if archive or upload fails
+        if: failure() && (steps.archive-gecko.outcome == 'failure' || steps.upload-gecko.outcome == 'failure')
+        uses: actions/upload-artifact@v4
+        with:
+          name: Gecko-iOS-arm64-raw-binaries-fallback
+          path: reynard-source/engine/firefox/obj-aarch64-apple-ios/dist/bin/
+          retention-days: 14
+          if-no-files-found: warn
       - name: Record compiler cache statistics
         run: sccache --show-stats || true
       - name: Build original Reynard GeckoView Swift framework (unstripped)
@@ -79,17 +112,21 @@ jobs:
           # Previous workflow failed because -destination and -arch conflict.
           # Build the actual framework target, not the Reynard app or a nonexistent
           # shared GeckoView scheme, and locate products under a stable SYMROOT.
+          # This target uses an Objective-C bridging header, which Swift cannot
+          # compile together with BUILD_LIBRARY_FOR_DISTRIBUTION=YES. Ship the
+          # architecture-specific binary Swift module and pin consumers to the
+          # same Xcode 26.5 toolchain instead of requesting a swiftinterface.
           xcodebuild -project browser/Reynard.xcodeproj -target GeckoView \
             -configuration Release -sdk iphoneos -arch arm64 \
             SYMROOT="$RUNNER_TEMP/reynard-gecko-dev/Build/Products" \
-            BUILD_LIBRARY_FOR_DISTRIBUTION=YES \
+            BUILD_LIBRARY_FOR_DISTRIBUTION=NO \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             build 2>&1 | tee "$RUNNER_TEMP/geckoview-dev-build.log"
           FRAMEWORK="$RUNNER_TEMP/reynard-gecko-dev/Build/Products/Release-iphoneos/GeckoView.framework"
           test -f "$FRAMEWORK/GeckoView"
           test -d "$FRAMEWORK/Modules/GeckoView.swiftmodule"
           find "$FRAMEWORK/Modules/GeckoView.swiftmodule" -type f
-          find "$FRAMEWORK/Modules/GeckoView.swiftmodule" -name '*.swiftinterface' | grep -q .
+          find "$FRAMEWORK/Modules/GeckoView.swiftmodule" -name 'arm64-apple-ios.swiftmodule' | grep -q .
           xcodebuild -create-xcframework -framework "$FRAMEWORK" \
             -output "$RUNNER_TEMP/GeckoView-dev.xcframework"
           test -f "$RUNNER_TEMP/GeckoView-dev.xcframework/Info.plist"
