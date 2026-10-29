@@ -45,6 +45,16 @@ def add_imports(text: str, imports: list[str], where: str) -> str:
     return "\n".join(lines)
 
 
+LINT_OFF = "// swiftlint:disable all"
+LINT_ON = "// swiftlint:enable all"
+
+
+def unlinted(code: str) -> str:
+    """Firefox's SwiftLint build phase fails the build on style rules; they
+    are not meant for imported Reynard code or this overlay."""
+    return f"{LINT_OFF}\n{code.strip(chr(10))}\n{LINT_ON}"
+
+
 def overlay_body(name: str) -> str:
     """Overlay source without its import lines (those go to the file top)."""
     lines = (OVERLAY / name).read_text(encoding="utf-8").split("\n")
@@ -73,7 +83,7 @@ if appDelegate == NSStringFromClass(AppDelegate.self) && GeckoFirefoxBootstrap.i
     {original}
 }}"""
     text = replace_once(text, original, replacement, str(path))
-    text = text.rstrip("\n") + f"\n\n{MARKER}\n" + overlay_body("GeckoFirefoxBootstrap.swift") + "\n"
+    text = text.rstrip("\n") + f"\n\n{MARKER}\n" + unlinted(overlay_body("GeckoFirefoxBootstrap.swift")) + "\n"
     path.write_text(text, encoding="utf-8")
     print(f"patched {path}")
 
@@ -253,10 +263,10 @@ def patch_tab_webview(root: Path) -> None:
     text = replace_once(
         text,
         "    required init?(coder: NSCoder) {\n",
-        TAB_WEBVIEW_OVERRIDES + "    required init?(coder: NSCoder) {\n",
+        f"    {LINT_OFF}\n" + TAB_WEBVIEW_OVERRIDES + f"    {LINT_ON}\n" + "    required init?(coder: NSCoder) {\n",
         str(path),
     )
-    text = text.rstrip("\n") + f"\n\n{MARKER}\n" + overlay_body("GeckoTabEngine.swift") + "\n"
+    text = text.rstrip("\n") + f"\n\n{MARKER}\n" + unlinted(overlay_body("GeckoTabEngine.swift")) + "\n"
     path.write_text(text, encoding="utf-8")
     print(f"patched {path}")
 
@@ -308,7 +318,7 @@ def patch_downloads(root: Path, reynard: Path) -> None:
     engine_body = "\n".join(line for line in engine.split("\n") if not re.match(r"^(@\w+ )*import ", line))
     text = add_imports(text, ["import Foundation", "import UIKit", "@preconcurrency import GeckoView"], str(path))
     text = (text.rstrip("\n") + f"\n\n{MARKER}: Reynard's FetchDockTransferEngine (soum91/reynard-browser)\n"
-            + engine_body.strip("\n") + f"\n\n{MARKER}\n" + overlay_body("GeckoDownloads.swift") + "\n")
+            + unlinted(engine_body) + f"\n\n{MARKER}\n" + unlinted(overlay_body("GeckoDownloads.swift")) + "\n")
     path.write_text(text, encoding="utf-8")
     print(f"patched {path}")
 
