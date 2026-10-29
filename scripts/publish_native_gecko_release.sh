@@ -59,10 +59,14 @@ echo "-------------------------"
 if gh release view "$tag" --repo "$repo" >/dev/null 2>&1; then
   echo "Release $tag exists; re-uploading the IPA"
 else
-  gh release create "$tag" --repo "$repo" --target "$sha" \
-    --title "Firefox Gecko native 159.0 (build ${build})" \
-    --notes-file "$notes" --prerelease --latest=false \
-    || fail "gh release create returned $?"
+  if ! output=$(gh release create "$tag" --repo "$repo" --target "$sha" \
+      --title "Firefox Gecko native 159.0 (build ${build})" \
+      --notes-file "$notes" --prerelease --latest=false 2>&1); then
+    fail "gh release create: $(echo "$output" | tr '\n' ' ')"
+  fi
+  echo "$output"
 fi
-gh release upload "$tag" "$ipa" --repo "$repo" --clobber || fail "uploading $(basename "$ipa") returned $?"
+if ! output=$(gh release upload "$tag" "$ipa" --repo "$repo" --clobber 2>&1); then
+  fail "uploading $(basename "$ipa"): $(echo "$output" | tr '\n' ' ')"
+fi
 echo "Published https://github.com/$repo/releases/tag/$tag"
