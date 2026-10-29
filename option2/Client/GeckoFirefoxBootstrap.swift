@@ -199,6 +199,46 @@ enum GeckoAppDelegateForwarding {
     }
 }
 
+/// Sideloaded builds have no App Group entitlement, so
+/// `containerURL(forSecurityApplicationGroupIdentifier:)` returns nil. Firefox
+/// keeps its profile there (Nimbus, history, logins), and without it Nimbus
+/// disables itself and onboarding has no cards, so Skip does nothing. When iOS
+/// has no group container, answer with a folder inside the app's own sandbox.
+/// The app extensions that would share the group are not shipped in this IPA.
+enum SideloadAppGroupFallback {
+    nonisolated(unsafe) private static var installed = false
+
+    static func install() {
+        guard !installed else { return }
+        installed = true
+        let selector = NSSelectorFromString("containerURLForSecurityApplicationGroupIdentifier:")
+        guard let method = class_getInstanceMethod(FileManager.self, selector) else { return }
+        typealias Lookup = @convention(c) (AnyObject, Selector, NSString) -> NSURL?
+        let original = unsafeBitCast(method_getImplementation(method), to: Lookup.self)
+        let replacement: @convention(block) (AnyObject, NSString) -> NSURL? = { manager, group in
+            if let url = original(manager, selector, group) {
+                return url
+            }
+            return fallbackContainer(for: group as String) as NSURL?
+        }
+        method_setImplementation(method, imp_implementationWithBlock(replacement))
+    }
+
+    private static func fallbackContainer(for group: String) -> URL? {
+        guard let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        let url = support.appendingPathComponent("AppGroupFallback", isDirectory: true)
+            .appendingPathComponent(group, isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+            return url
+        } catch {
+            return nil
+        }
+    }
+}
+
 extension AppDelegate {
     /// Firefox's AppDelegate, whether it is the UIApplication delegate itself
     /// (WebKit mode, tests) or sits behind Gecko's AppShellDelegate.

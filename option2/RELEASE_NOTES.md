@@ -6,6 +6,7 @@ Mozilla's Firefox 159 app (its own UI, tab tray, menus and settings) with web pa
 - Firefox starts through `GeckoRuntime.main`; Gecko's app delegate forwards to Firefox's `AppDelegate`, so Firefox's own startup still runs.
 - Each tab's `TabWebView` hosts a Gecko session and reports Gecko's URL, title, progress, loading and back/forward state to Firefox the same way WebKit did.
 - Launch argument / user default `FirefoxGeckoUseWebKit = YES` starts the unchanged WebKit Firefox instead.
+- Sideloaded installs have no App Group, so Firefox's profile (history, Nimbus, onboarding) lives in a private folder inside the app instead of the shared group container.
 
 ## Expected to work
 - Loading pages, typing a URL or search, back, forward, reload, stop

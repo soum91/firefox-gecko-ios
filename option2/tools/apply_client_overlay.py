@@ -63,7 +63,10 @@ def patch_main(root: Path) -> None:
     text = add_imports(text, ["import Foundation", "import UIKit", *GECKO_IMPORTS], str(path))
     original = ("_ = UIApplicationMain(CommandLine.argc, CommandLine.unsafeArgv, "
                 "NSStringFromClass(UIApplication.self), appDelegate)")
-    replacement = f"""{MARKER}: start through Gecko unless running tests or WebKit was requested.
+    replacement = f"""{MARKER}: sideloaded builds have no App Group; see SideloadAppGroupFallback.
+SideloadAppGroupFallback.install()
+
+{MARKER}: start through Gecko unless running tests or WebKit was requested.
 if appDelegate == NSStringFromClass(AppDelegate.self) && GeckoFirefoxBootstrap.isGeckoRequested {{
     GeckoFirefoxBootstrap.run(firefoxDelegate: AppDelegate(), argc: CommandLine.argc, argv: CommandLine.unsafeArgv)
 }} else {{
