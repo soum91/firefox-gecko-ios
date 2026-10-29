@@ -7,6 +7,7 @@ on:
       - .github/scripts/**
       - option2/**
       - scripts/package_native_gecko_ipa.py
+      - scripts/publish_native_gecko_release.sh
   workflow_dispatch:
     inputs:
       force_engine_rebuild:
