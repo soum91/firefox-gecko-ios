@@ -31,6 +31,9 @@ enum GeckoFirefoxBootstrap {
         !UserDefaults.standard.bool(forKey: "FirefoxGeckoUseWebKit")
     }
 
+    /// Main-actor isolated like `GeckoRuntime.main` and the top-level code in
+    /// main.swift that calls it, so argv never crosses an isolation boundary.
+    @MainActor
     static func run(
         firefoxDelegate: NSObject,
         argc: Int32,

@@ -20,6 +20,11 @@ pattern='(^|[[:space:]:])(error|fatal error)(\[[A-Z0-9]+\])?:|^error:|\*\* BUILD
   echo
 } >> "$summary"
 
+any_errors=0
+for log in "$@"; do
+  if [ -s "$log" ] && grep -qE "$pattern" "$log"; then any_errors=1; fi
+done
+
 for log in "$@"; do
   [ -s "$log" ] || continue
   name=$(basename "$log")
@@ -29,8 +34,9 @@ for log in "$@"; do
     | sed -E 's/^[[:space:]]+//; s#/Users/runner/work/[^/]+/[^/]+/##g' \
     | awk '!seen[$0]++' | head -n "$limit")
   if [ -z "$errors" ]; then
-    # A log that ends in success is not where the failure is.
-    if tail -n 30 "$log" | grep -q 'BUILD SUCCEEDED'; then
+    # A log that ends in success is not where the failure is, and when
+    # another log has real errors, a log without any is just noise.
+    if [ "$any_errors" -eq 1 ] || tail -n 30 "$log" | grep -q 'BUILD SUCCEEDED'; then
       continue
     fi
     errors=$(tail -n 20 "$log" | sed -E 's#/Users/runner/work/[^/]+/[^/]+/##g')
