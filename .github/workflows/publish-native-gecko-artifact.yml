@@ -1,0 +1,66 @@
+name: Publish native Gecko IPA from a finished build
+
+# Publishes the IPA artifact of an earlier "Build unstripped Reynard GeckoView"
+# run as a prerelease, without rebuilding. Trigger by pushing a change to
+# .github/native-gecko-publish.json (run_id, optional missing Gecko files) or
+# run it manually.
+
+on:
+  push:
+    branches: [firefox-native-gecko]
+    paths:
+      - .github/native-gecko-publish.json
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Build run whose Firefox-Gecko-Native IPA artifact to publish
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read which build to publish
+        id: request
+        run: |
+          set -euo pipefail
+          if [ -n "${{ inputs.run_id }}" ]; then
+            run_id="${{ inputs.run_id }}"
+            : > "$RUNNER_TEMP/missing.txt"
+          else
+            run_id=$(jq -r .run_id .github/native-gecko-publish.json)
+            jq -r '.missing[]?' .github/native-gecko-publish.json > "$RUNNER_TEMP/missing.txt"
+          fi
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" --jq .head_sha)
+          name=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/artifacts" \
+            --jq '[.artifacts[] | select(.name | startswith("Firefox-Gecko-Native-"))][0].name')
+          test -n "$name" && test "$name" != null
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "artifact=$name" >> "$GITHUB_OUTPUT"
+          echo "build=${name##*-build-}" >> "$GITHUB_OUTPUT"
+      - name: Download the IPA
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ steps.request.outputs.artifact }}
+          run-id: ${{ steps.request.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: ipa
+      - name: Publish prerelease with build number and changelog
+        run: |
+          set -o pipefail
+          ipa=$(find ipa -name '*.ipa' | head -n 1)
+          bash scripts/publish_native_gecko_release.sh "$ipa" "${{ steps.request.outputs.build }}" \
+            "${{ steps.request.outputs.sha }}" "$RUNNER_TEMP/missing.txt" 2>&1 | tee "$RUNNER_TEMP/publish.log"
+      - name: Show the real error on the run page
+        if: failure()
+        run: bash .github/scripts/surface-build-errors.sh "$RUNNER_TEMP/publish.log"

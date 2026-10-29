@@ -1,0 +1,9 @@
+{
+  "run_id": 40852228537,
+  "missing": [
+    "chrome/toolkit/content/global/license.html",
+    "chrome/toolkit/content/global/neterror/aboutNetErrorCodes.js",
+    "chrome/toolkit/res/nimbus/FeatureManifest.sys.mjs",
+    "default.locale"
+  ]
+}

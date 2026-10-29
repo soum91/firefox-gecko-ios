@@ -77,8 +77,10 @@ class GeckoArtifactWorkflowTests(unittest.TestCase):
         self.assertIn("-scheme Fennec", workflow)
         self.assertIn("Firefox-Gecko-Native-159.0-build-${build}.ipa", workflow)
         self.assertIn("--build \"$build\"", workflow)
-        self.assertIn("## Changes in build ${build}", workflow)
-        self.assertIn("--prerelease --latest=false", workflow)
+        self.assertIn("scripts/publish_native_gecko_release.sh", workflow)
+        publish = (ROOT / "scripts/publish_native_gecko_release.sh").read_text(encoding="utf-8")
+        self.assertIn("## Changes in build ${build}", publish)
+        self.assertIn("--prerelease --latest=false", publish)
         # The app needs Gecko's child-process extension at this exact path.
         self.assertIn('-target "Reynard Helper"', workflow)
         # The app overlay is applied only after BrowserKit has GeckoView.

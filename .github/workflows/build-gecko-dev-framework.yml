@@ -333,34 +333,11 @@ jobs:
       - name: Publish prerelease with build number and changelog
         env:
           GH_TOKEN: ${{ github.token }}
-          IPA: ${{ steps.ipa.outputs.path }}
         run: |
-          set -euo pipefail
-          build="${{ github.run_number }}"
-          tag="native-gecko-159.0-build-${build}"
-          previous=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=50" \
-            --jq '[.[] | select(.tag_name | startswith("native-gecko-"))][0].target_commitish // empty')
-          {
-            cat option2/RELEASE_NOTES.md
-            echo
-            if [ -s "$RUNNER_TEMP/missing-gecko-files.txt" ]; then
-              echo "## Gecko files missing from this build"
-              echo "These generated Gecko files were not in the cached engine, so this build lacks them:"
-              sed 's/^/- /' "$RUNNER_TEMP/missing-gecko-files.txt"
-              echo
-            fi
-            echo "## Changes in build ${build}"
-            if [ -n "$previous" ]; then
-              gh api "repos/$GITHUB_REPOSITORY/compare/${previous}...${GITHUB_SHA}" \
-                --jq '.commits[] | "- " + (.commit.message | split("\n")[0]) + " (" + .sha[0:7] + ")"'
-            else
-              gh api "repos/$GITHUB_REPOSITORY/commits?sha=${GITHUB_SHA}&per_page=12" \
-                --jq '.[] | "- " + (.commit.message | split("\n")[0]) + " (" + .sha[0:7] + ")"'
-            fi
-          } > "$RUNNER_TEMP/release-notes.md"
-          gh release create "$tag" "$IPA" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "Firefox Gecko native 159.0 (build ${build})" \
-            --notes-file "$RUNNER_TEMP/release-notes.md" --prerelease --latest=false
+          set -o pipefail
+          bash scripts/publish_native_gecko_release.sh "${{ steps.ipa.outputs.path }}" \
+            "${{ github.run_number }}" "$GITHUB_SHA" "$RUNNER_TEMP/missing-gecko-files.txt" \
+            2>&1 | tee "$RUNNER_TEMP/publish.log"
       - name: Show the real compiler errors on the run page
         if: failure()
         run: |
@@ -371,7 +348,8 @@ jobs:
             "$RUNNER_TEMP/gecko-helper-build.log" \
             "$RUNNER_TEMP/firefox-bootstrap.log" \
             "$RUNNER_TEMP/firefox-app-build.log" \
-            "$RUNNER_TEMP/ipa-package.log"
+            "$RUNNER_TEMP/ipa-package.log" \
+            "$RUNNER_TEMP/publish.log"
       - name: Trim Gecko compile log for upload
         if: always()
         run: |
