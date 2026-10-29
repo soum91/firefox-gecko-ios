@@ -216,8 +216,13 @@ jobs:
           test -d "$FRAMEWORK/Modules/GeckoView.swiftmodule"
           find "$FRAMEWORK/Modules/GeckoView.swiftmodule" -type f
           find "$FRAMEWORK/Modules/GeckoView.swiftmodule" -name 'arm64-apple-ios.swiftmodule' | grep -q .
-          xcodebuild -create-xcframework -framework "$FRAMEWORK" \
-            -output "$RUNNER_TEMP/GeckoView-dev.xcframework"
+          # The module is a binary .swiftmodule with no .swiftinterface (see
+          # BUILD_LIBRARY_FOR_DISTRIBUTION=NO above). create-xcframework rejects
+          # that with exit 70 unless internal distribution is allowed. Log its
+          # output too, so a failure here shows up on the run page.
+          xcodebuild -create-xcframework -allow-internal-distribution \
+            -framework "$FRAMEWORK" \
+            -output "$RUNNER_TEMP/GeckoView-dev.xcframework" 2>&1 | tee -a "$RUNNER_TEMP/geckoview-dev-build.log"
           test -f "$RUNNER_TEMP/GeckoView-dev.xcframework/Info.plist"
       - name: Upload unstripped GeckoView developer framework
         uses: actions/upload-artifact@v4

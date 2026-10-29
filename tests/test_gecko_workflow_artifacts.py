@@ -55,6 +55,14 @@ class GeckoArtifactWorkflowTests(unittest.TestCase):
         self.assertTrue(script.is_file())
         self.assertIn("::error title=", script.read_text(encoding="utf-8"))
 
+    def test_binary_only_swift_module_can_be_packaged(self):
+        # Without a .swiftinterface, create-xcframework exits 70 unless
+        # internal distribution is allowed.
+        for path in (BUILD, RESUME):
+            workflow = path.read_text(encoding="utf-8")
+            self.assertIn("BUILD_LIBRARY_FOR_DISTRIBUTION=NO", workflow, path.name)
+            self.assertIn("-create-xcframework -allow-internal-distribution", workflow, path.name)
+
     def test_resume_uses_the_exact_engine_archive_name_and_toolchain(self):
         workflow = RESUME.read_text(encoding="utf-8")
         self.assertIn("Gecko-iOS-arm64-compiled-engine-dist", workflow)

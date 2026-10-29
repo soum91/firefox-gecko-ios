@@ -69,8 +69,13 @@ jobs:
           framework="$RUNNER_TEMP/reynard-gecko-dev/Build/Products/Release-iphoneos/GeckoView.framework"
           test -f "$framework/GeckoView"
           test -f "$framework/Modules/GeckoView.swiftmodule/arm64-apple-ios.swiftmodule"
-          xcodebuild -create-xcframework -framework "$framework" \
-            -output "$RUNNER_TEMP/GeckoView-dev.xcframework"
+          # The module is a binary .swiftmodule with no .swiftinterface (see
+          # BUILD_LIBRARY_FOR_DISTRIBUTION=NO above). create-xcframework rejects
+          # that with exit 70 unless internal distribution is allowed. Log its
+          # output too, so a failure here shows up on the run page.
+          xcodebuild -create-xcframework -allow-internal-distribution \
+            -framework "$framework" \
+            -output "$RUNNER_TEMP/GeckoView-dev.xcframework" 2>&1 | tee -a "$RUNNER_TEMP/geckoview-dev-build.log"
       - name: Upload GeckoView framework before Firefox integration
         uses: actions/upload-artifact@v4
         with:
