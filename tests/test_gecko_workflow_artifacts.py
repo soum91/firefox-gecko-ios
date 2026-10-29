@@ -20,6 +20,31 @@ class GeckoArtifactWorkflowTests(unittest.TestCase):
         self.assertIn("Gecko-iOS-arm64-raw-binaries-fallback", workflow)
         self.assertIn("BUILD_LIBRARY_FOR_DISTRIBUTION=NO", workflow)
 
+    def test_push_never_recompiles_an_engine_that_already_exists(self):
+        workflow = BUILD.read_text(encoding="utf-8")
+        self.assertIn("actions/cache/restore@v4", workflow)
+        self.assertIn("actions/cache/save@v4", workflow)
+        self.assertIn(".github/scripts/fetch-gecko-engine.sh", workflow)
+        self.assertIn("cancel-in-progress: false", workflow)
+        # The compile is skipped whenever a reusable engine was unpacked.
+        compile_step = workflow[workflow.index("- name: Compile Gecko engine"):]
+        compile_step = compile_step[:compile_step.index("- name:", 10)]
+        self.assertIn("steps.engine-reuse.outputs.ready != 'true'", compile_step)
+        # The engine is cached before any GeckoView or Firefox step can fail.
+        self.assertLess(
+            workflow.index("Cache compiled Gecko engine immediately"),
+            workflow.index("Build original Reynard GeckoView Swift framework"),
+        )
+        self.assertIn("reynard-engine-key.txt", workflow)
+
+    def test_failures_publish_real_compiler_errors(self):
+        for path in (BUILD, RESUME):
+            workflow = path.read_text(encoding="utf-8")
+            self.assertIn(".github/scripts/surface-build-errors.sh", workflow, path.name)
+        script = ROOT / ".github/scripts/surface-build-errors.sh"
+        self.assertTrue(script.is_file())
+        self.assertIn("::error title=", script.read_text(encoding="utf-8"))
+
     def test_resume_uses_the_exact_engine_archive_name_and_toolchain(self):
         workflow = RESUME.read_text(encoding="utf-8")
         self.assertIn("Gecko-iOS-arm64-compiled-engine-dist", workflow)

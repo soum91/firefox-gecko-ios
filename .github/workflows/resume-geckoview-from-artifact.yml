@@ -96,6 +96,12 @@ jobs:
             -destination 'generic/platform=iOS' -sdk iphoneos \
             -derivedDataPath "$RUNNER_TEMP/firefox-gecko-dev" \
             CODE_SIGNING_ALLOWED=NO build 2>&1 | tee "$RUNNER_TEMP/firefox-webengine-dev-build.log"
+      - name: Show the real compiler errors on the run page
+        if: failure()
+        run: |
+          bash .github/scripts/surface-build-errors.sh \
+            "$RUNNER_TEMP/geckoview-dev-build.log" \
+            "$RUNNER_TEMP/firefox-webengine-dev-build.log"
       - name: Preserve logs regardless of result
         if: always()
         uses: actions/upload-artifact@v4
