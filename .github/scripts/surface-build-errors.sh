@@ -33,6 +33,10 @@ for log in "$@"; do
   errors=$(grep -E "$pattern" "$log" \
     | sed -E 's/^[[:space:]]+//; s#/Users/runner/work/[^/]+/[^/]+/##g' \
     | awk '!seen[$0]++' | head -n "$limit")
+  # A Python traceback's cause is at its end, not on the "Traceback" line.
+  if grep -q 'Traceback (most recent call last)' "$log"; then
+    errors="$errors"$'\n'"$(tail -n 8 "$log" | sed -E 's#/Users/runner/work/[^/]+/[^/]+/##g')"
+  fi
   if [ -z "$errors" ]; then
     # A log that ends in success is not where the failure is, and when
     # another log has real errors, a log without any is just noise.

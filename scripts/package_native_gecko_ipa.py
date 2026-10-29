@@ -97,8 +97,20 @@ def package(app_src: Path, helper_src: Path, framework_src: Path, dist_bin: Path
         gecko_frameworks = geckoview / "Frameworks"
         gecko_frameworks.mkdir(exist_ok=True)
 
-        if not (dist_bin / "XUL").is_file():
-            raise FileNotFoundError(f"Gecko XUL missing from {dist_bin}")
+        # The cached engine archive keeps dist/ only; links into the rest of
+        # the Gecko build tree dangle after a restore. Report them all at once.
+        dangling = sorted(str(p.relative_to(dist_bin)) for p in dist_bin.rglob("*")
+                          if p.is_symlink() and not p.exists())
+        if dangling:
+            sample = ", ".join(dangling[:12])
+            raise FileNotFoundError(
+                f"{len(dangling)} dangling links in Gecko dist/bin (engine archive lacks their "
+                f"targets): {sample}")
+        xul = dist_bin / "XUL"
+        print(f"dist/bin: {len(list(dist_bin.iterdir()))} entries; XUL symlink={xul.is_symlink()} "
+              f"resolves={xul.exists()}" + (f" -> {xul.resolve()}" if xul.is_symlink() else ""))
+        if not xul.is_file():
+            raise FileNotFoundError(f"Gecko XUL missing or a dangling link in {dist_bin}")
         for entry in sorted(dist_bin.iterdir()):
             if entry.name == "XUL":
                 copy_resolved(entry, frameworks / "XUL.dylib")
@@ -187,5 +199,13 @@ if __name__ == "__main__":
     parser.add_argument("--version", default="159.0")
     parser.add_argument("--build", required=True)
     args = parser.parse_args()
-    package(args.app, args.helper, args.framework, args.dist_bin, args.default_theme,
-            args.output, args.bundle_id, args.version, args.build)
+    try:
+        package(args.app, args.helper, args.framework, args.dist_bin, args.default_theme,
+                args.output, args.bundle_id, args.version, args.build)
+    except Exception as failure:  # one greppable line for the CI error summary
+        import sys
+        import traceback
+        traceback.print_exc()
+        detail = f"{type(failure).__name__}: {failure}".replace("\n", " | ")
+        print(f"error: IPA packaging failed: {detail}", file=sys.stderr, flush=True)
+        sys.exit(1)
