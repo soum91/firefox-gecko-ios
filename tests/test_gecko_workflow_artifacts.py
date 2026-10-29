@@ -63,6 +63,14 @@ class GeckoArtifactWorkflowTests(unittest.TestCase):
             self.assertIn("BUILD_LIBRARY_FOR_DISTRIBUTION=NO", workflow, path.name)
             self.assertIn("-create-xcframework -allow-internal-distribution", workflow, path.name)
 
+    def test_browserkit_can_resolve_geckoview_bridging_header(self):
+        # GeckoView's binary module records Reynard's bridging header, so the
+        # importer needs Reynard's header folders or it fails to scan it.
+        for path in (BUILD, RESUME):
+            workflow = path.read_text(encoding="utf-8")
+            self.assertIn("geckoview-client-swift-flags.sh", workflow, path.name)
+            self.assertIn("OTHER_SWIFT_FLAGS='$(inherited)'", workflow, path.name)
+
     def test_resume_uses_the_exact_engine_archive_name_and_toolchain(self):
         workflow = RESUME.read_text(encoding="utf-8")
         self.assertIn("Gecko-iOS-arm64-compiled-engine-dist", workflow)

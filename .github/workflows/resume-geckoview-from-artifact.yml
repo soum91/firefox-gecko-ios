@@ -97,10 +97,15 @@ jobs:
         working-directory: firefox-source/BrowserKit
         run: |
           set -o pipefail
+          # GeckoView's module records Reynard's bridging header; give the
+          # importer the header folders Reynard's own build uses.
+          gecko_flags=$(bash "$GITHUB_WORKSPACE/.github/scripts/geckoview-client-swift-flags.sh" "$GITHUB_WORKSPACE/reynard-source")
+          echo "GeckoView client flags: $gecko_flags"
           xcodebuild -skipMacroValidation -scheme WebEngine -configuration Debug \
             -destination 'generic/platform=iOS' -sdk iphoneos \
             -derivedDataPath "$RUNNER_TEMP/firefox-gecko-dev" \
-            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee "$RUNNER_TEMP/firefox-webengine-dev-build.log"
+            CODE_SIGNING_ALLOWED=NO OTHER_SWIFT_FLAGS='$(inherited)'" $gecko_flags" \
+            build 2>&1 | tee "$RUNNER_TEMP/firefox-webengine-dev-build.log"
       - name: Show the real compiler errors on the run page
         if: failure()
         run: |
