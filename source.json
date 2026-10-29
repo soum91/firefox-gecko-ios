@@ -60,6 +60,32 @@
       "versionDescription": "Gecko XUL.dylib code-signature and dyld dependency diagnostic. Retains essential helper; must re-sign all embedded libraries and helper using your certificate. Launch not verified. Reynard UI.",
       "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/v159.0.5-xul-signature-fix/Firefox-Gecko-XUL-Signature-Fix.ipa",
       "size": 111473848
+    },
+    {
+      "name": "Firefox Gecko (Native UI)",
+      "bundleIdentifier": "com.soum91.FirefoxNativeGecko",
+      "developerName": "soum91",
+      "subtitle": "Mozilla's Firefox 159 UI with the Reynard Gecko engine",
+      "localizedDescription": "Mozilla's own Firefox 159 app (home, tab tray, menus, settings) with web pages rendered by the Reynard Gecko engine instead of WebKit. Experimental test builds, not an official Mozilla release. Re-sign everything, including Frameworks/XUL.dylib, GeckoView.framework and PlugIns/Reynard Helper.appex.",
+      "iconURL": "https://raw.githubusercontent.com/soum91/reynard-browser/main/browser/Reynard/Resources/Assets.xcassets/ReynardFox.appiconset/ReynardFox.png",
+      "tintColor": "#FF8C42",
+      "category": "utilities",
+      "versions": [
+        {
+          "version": "159.0.17",
+          "buildVersion": "17",
+          "date": "2026-10-29",
+          "localizedDescription": "Mozilla's Firefox 159 UI with tabs rendered by the Reynard Gecko engine. Complete Gecko runtime; sideload App Group fix so onboarding works. Test build: re-sign everything including XUL.dylib, GeckoView.framework and Reynard Helper.appex. Reader mode, find in page, downloads and tab thumbnails not working yet.",
+          "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/native-gecko-159.0-build-17/Firefox-Gecko-Native-159.0-build-17.ipa",
+          "size": 363272996,
+          "minOSVersion": "15.0"
+        }
+      ],
+      "version": "159.0.17",
+      "versionDate": "2026-10-29",
+      "versionDescription": "Mozilla's Firefox 159 UI with tabs rendered by the Reynard Gecko engine. Complete Gecko runtime; sideload App Group fix so onboarding works. Test build: re-sign everything including XUL.dylib, GeckoView.framework and Reynard Helper.appex. Reader mode, find in page, downloads and tab thumbnails not working yet.",
+      "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/native-gecko-159.0-build-17/Firefox-Gecko-Native-159.0-build-17.ipa",
+      "size": 363272996
     }
   ],
   "news": []
