@@ -357,7 +357,7 @@ def patch_addons(root: Path) -> None:
         "        if GeckoTabEngine.isEnabled {\n"
         "            options.append(MenuElement(\n"
         "                title: \"Add-ons\",\n"
-        "                iconName: Icons.lightning,\n"
+        "                iconName: StandardImageIdentifiers.Large.lightning,\n"
         "                isEnabled: true,\n"
         "                isActive: false,\n"
         "                a11yLabel: \"Add-ons\",\n"
