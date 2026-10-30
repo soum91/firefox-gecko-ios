@@ -7,6 +7,7 @@ on:
       - .github/scripts/**
       - option2/**
       - scripts/package_native_gecko_ipa.py
+      - scripts/build_link_extensions.sh
       - scripts/publish_native_gecko_release.sh
   workflow_dispatch:
     inputs:
@@ -282,6 +283,11 @@ jobs:
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             build 2>&1 | tee "$RUNNER_TEMP/gecko-helper-build.log"
           test -d "$RUNNER_TEMP/reynard-gecko-dev/Build/Products/Release-iphoneos/Reynard Helper.appex"
+      - name: Build Safari redirect and share sheet extensions
+        timeout-minutes: 10
+        run: |
+          set -o pipefail
+          bash scripts/build_link_extensions.sh "$RUNNER_TEMP/link-extensions" 2>&1 | tee "$RUNNER_TEMP/link-extensions-build.log"
       - name: Bootstrap Firefox app build tools
         timeout-minutes: 25
         working-directory: firefox-source
@@ -321,6 +327,8 @@ jobs:
             --dist-bin reynard-source/engine/firefox/obj-aarch64-apple-ios/dist/bin \
             --default-theme reynard-source/engine/firefox/toolkit/mozapps/extensions/default-theme \
             --companion reynard-source/addons/fetchdock \
+            --extension "$RUNNER_TEMP/link-extensions/SafariRedirect.appex" \
+            --extension "$RUNNER_TEMP/link-extensions/ShareTo.appex" \
             --output "$out" --version "159.0.${build}" --build "$build" --missing-report "$RUNNER_TEMP/missing-gecko-files.txt" \
             2>&1 | tee "$RUNNER_TEMP/ipa-package.log"
           echo "path=$out" >> "$GITHUB_OUTPUT"

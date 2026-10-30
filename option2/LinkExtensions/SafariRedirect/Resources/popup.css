@@ -1,0 +1,7 @@
+:root { color-scheme: light dark; font: -apple-system-body; }
+body { margin: 0; padding: 12px 14px; min-width: 260px; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; }
+#site-section { border-top: 0.5px solid rgba(128, 128, 128, 0.4); margin-top: 4px; }
+button { display: block; width: 100%; margin-top: 10px; padding: 11px; border: 0; border-radius: 12px;
+  font: inherit; font-weight: 600; background: rgba(128, 128, 128, 0.18); color: inherit; }
+#open { background: #ff7139; color: white; }

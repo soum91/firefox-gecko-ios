@@ -242,8 +242,21 @@ final class GeckoAddonManager: NSObject {
         guard let components = URLComponents(string: uri),
               components.host == "download",
               let value = components.queryItems?.first(where: { $0.name == "url" })?.value,
-              let url = URL(string: value), url.scheme?.lowercased() == "https", url.host?.isEmpty == false,
-              let browser = browserViewController() else { return }
+              let url = URL(string: value) else { return }
+        startFetchDockDownload(url: url)
+    }
+
+    /// Also used by the share sheet (`firefoxgecko://fetchdock?url=`), which
+    /// can arrive before Firefox's browser window exists on a cold launch.
+    static func startFetchDockDownload(url: URL, attempts: Int = 20) {
+        guard url.scheme?.lowercased() == "https", url.host?.isEmpty == false else { return }
+        guard let browser = browserViewController() else {
+            guard attempts > 0 else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                MainActor.assumeIsolated { startFetchDockDownload(url: url, attempts: attempts - 1) }
+            }
+            return
+        }
         browser.downloadQueue.enqueue(FetchDockDownload(originWindow: browser.windowUUID, url: url))
     }
 }

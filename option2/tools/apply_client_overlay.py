@@ -377,6 +377,28 @@ def patch_addons(root: Path) -> None:
     print(f"patched {path}")
 
 
+def patch_link_routes(root: Path) -> None:
+    """firefoxgecko://fetchdock?url= from the share sheet starts a FetchDock download."""
+    path = root / CLIENT / "Coordinators/Router/RouteBuilder.swift"
+    text = path.read_text(encoding="utf-8")
+    text = replace_once(
+        text,
+        "        guard let urlScanner = URLScanner(url: url) else { return nil }\n\n"
+        "        if let host = parseURLHost(url) {\n",
+        "        guard let urlScanner = URLScanner(url: url) else { return nil }\n\n"
+        f"        {MARKER}: share sheet > Download with FetchDock\n"
+        "        if urlScanner.isOurScheme, urlScanner.host.lowercased() == \"fetchdock\",\n"
+        "           let download = urlScanner.fullURLQueryItem()?.asURL {\n"
+        "            GeckoAddonManager.startFetchDockDownload(url: download)\n"
+        "            return nil\n"
+        "        }\n\n"
+        "        if let host = parseURLHost(url) {\n",
+        str(path),
+    )
+    path.write_text(text, encoding="utf-8")
+    print(f"patched {path}")
+
+
 def apply(root: Path, reynard: Path) -> None:
     root = root.resolve()
     if not (root / CLIENT / "TabManagement/TabWebView.swift").is_file():
@@ -389,6 +411,7 @@ def apply(root: Path, reynard: Path) -> None:
     patch_empty_onboarding(root)
     patch_downloads(root, reynard.resolve())
     patch_addons(root)
+    patch_link_routes(root)
 
 
 if __name__ == "__main__":

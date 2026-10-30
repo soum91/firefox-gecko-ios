@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Open in Firefox Gecko",
+  "version": "1.0",
+  "description": "Sends links that open in Safari to Firefox Gecko.",
+  "icons": { "48": "icon-48.png", "96": "icon-96.png", "128": "icon-128.png" },
+  "background": { "scripts": ["background.js"], "persistent": false },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "all_frames": false
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": { "48": "icon-48.png", "96": "icon-96.png" },
+    "default_title": "Firefox Gecko"
+  },
+  "permissions": ["storage", "tabs"]
+}

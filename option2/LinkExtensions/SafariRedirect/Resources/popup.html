@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <label class="row">
+    <span>Send links to Firefox Gecko</span>
+    <input type="checkbox" id="enabled">
+  </label>
+  <div id="site-section">
+    <label class="row">
+      <span>Always use Safari on <b id="host"></b></span>
+      <input type="checkbox" id="excluded">
+    </label>
+    <button id="stay">Stay in Safari for this site (10 min)</button>
+    <button id="open">Open this page in Firefox Gecko</button>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

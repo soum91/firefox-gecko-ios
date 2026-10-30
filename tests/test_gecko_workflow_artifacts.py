@@ -101,6 +101,20 @@ class GeckoArtifactWorkflowTests(unittest.TestCase):
         self.assertIn("GeckoAddonPackageDownloads.shared.add", engine)
         self.assertIn("setAddonTabActive", engine)
 
+    def test_safari_redirect_and_share_extensions_ship_with_own_scheme(self):
+        workflow = BUILD.read_text(encoding="utf-8")
+        self.assertIn("scripts/build_link_extensions.sh", workflow)
+        self.assertIn('--extension "$RUNNER_TEMP/link-extensions/SafariRedirect.appex"', workflow)
+        self.assertIn('--extension "$RUNNER_TEMP/link-extensions/ShareTo.appex"', workflow)
+        package = (ROOT / "scripts/package_native_gecko_ipa.py").read_text(encoding="utf-8")
+        self.assertIn('URL_SCHEME = "firefoxgecko"', package)
+        content = (ROOT / "option2/LinkExtensions/SafariRedirect/Resources/content.js").read_text(encoding="utf-8")
+        self.assertIn("firefoxgecko://open-url?url=", content)
+        share = (ROOT / "option2/LinkExtensions/ShareTo/ShareViewController.swift").read_text(encoding="utf-8")
+        self.assertIn('scheme = "firefoxgecko"', share)
+        overlay = (ROOT / "option2/tools/apply_client_overlay.py").read_text(encoding="utf-8")
+        self.assertIn("patch_link_routes(root)", overlay)
+
     def test_resume_uses_the_exact_engine_archive_name_and_toolchain(self):
         workflow = RESUME.read_text(encoding="utf-8")
         self.assertIn("Gecko-iOS-arm64-compiled-engine-dist", workflow)

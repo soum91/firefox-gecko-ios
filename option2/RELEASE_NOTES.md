@@ -21,6 +21,9 @@ Mozilla's Firefox 159 app (its own UI, tab tray, menus and settings) with web pa
 - Add-ons: Settings > Add-ons lists them (enable, disable, run in private tabs, settings, remove) and links to addons.mozilla.org; tapping Add to Firefox there installs signed add-ons with a permission prompt
 - Menu > Add-ons opens each add-on's toolbar popup (for example uBlock Origin's panel)
 - FetchDock Companion is built in: it lists direct file links on a page and sends them to FetchDock
+- Safari redirect: with Safari as the default browser, links that open in Safari jump to Firefox Gecko. Turn on "Open in Firefox Gecko" in Settings > Apps > Safari > Extensions and allow it on all websites. Its toolbar popup turns it off, excludes a site, or keeps you in Safari for 10 minutes
+- Share sheet: Firefox Gecko opens a shared link or text in a normal or private tab, or downloads the link with FetchDock
+- This app uses the URL scheme firefoxgecko:// instead of firefox://, so it no longer catches links meant for a real Firefox
 
 ## Not working yet in Gecko tabs
 - Anything built on WebKit user scripts: reader mode, find in page, password autofill, page metadata
@@ -29,5 +32,5 @@ Mozilla's Firefox 159 app (its own UI, tab tray, menus and settings) with web pa
 - Firefox's link context menu (long-press on links)
 - Links that open a new window (they load in the current tab)
 - Firefox's own error and session-restore pages (Gecko shows its own error pages)
-- Firefox's share sheet and other app extensions are removed from this IPA (only the widget extension is kept, for the download Live Activity)
+- Firefox's own share, notification and other app extensions are removed from this IPA; it ships the widget (download Live Activity), Safari redirect and share sheet extensions instead
 - JIT: JavaScript runs on the interpreter only

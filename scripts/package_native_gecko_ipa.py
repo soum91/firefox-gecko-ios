@@ -33,6 +33,9 @@ OLD_XUL = "@rpath/XUL"
 NEW_XUL = "@rpath/XUL.dylib"
 SKIP_DIST = ("Test", "test_")
 KEEP_PLUGINS = {"WidgetKitExtension.appex"}
+# Firefox's own scheme is "firefox"; a separate one keeps links meant for this
+# app from opening a real Firefox installed alongside it.
+URL_SCHEME = "firefoxgecko"
 
 
 def run(*cmd: object) -> None:
@@ -75,7 +78,8 @@ def set_plist(path: Path, **values: object) -> dict:
 
 def package(app_src: Path, helper_src: Path, framework_src: Path, dist_bin: Path,
             default_theme: Path, output: Path, bundle_id: str, version: str, build: str,
-            missing_report: Path | None = None, companion: Path | None = None) -> None:
+            missing_report: Path | None = None, companion: Path | None = None,
+            extensions: list[Path] | None = None) -> None:
     with tempfile.TemporaryDirectory(prefix="firefox-gecko-ipa-") as temp:
         payload = Path(temp) / "Payload"
         app = payload / "Firefox.app"
@@ -89,6 +93,14 @@ def package(app_src: Path, helper_src: Path, framework_src: Path, dist_bin: Path
             CFBundleVersion=build,
         )
         executable = info["CFBundleExecutable"]
+        url_types = info.get("CFBundleURLTypes") or [{}]
+        url_types[0]["CFBundleURLSchemes"] = [
+            URL_SCHEME if scheme == info.get("MozPublicURLScheme", "firefox") else scheme
+            for scheme in url_types[0].get("CFBundleURLSchemes", [])
+        ] or [URL_SCHEME]
+        if URL_SCHEME not in url_types[0]["CFBundleURLSchemes"]:
+            url_types[0]["CFBundleURLSchemes"].insert(0, URL_SCHEME)
+        set_plist(app / "Info.plist", CFBundleURLTypes=url_types, MozPublicURLScheme=URL_SCHEME)
 
         # Firefox's extensions each cost an App ID when sideloading. Keep only the
         # widget extension, which draws Firefox's download Live Activity.
@@ -102,13 +114,26 @@ def package(app_src: Path, helper_src: Path, framework_src: Path, dist_bin: Path
                 shutil.rmtree(item, ignore_errors=True)
         for name in kept:
             extension = app / "PlugIns" / name
+            extension_info = plistlib.loads((extension / "Info.plist").read_bytes())
             set_plist(
                 extension / "Info.plist",
                 CFBundleIdentifier=f"{bundle_id}.{Path(name).stem}",
                 CFBundleShortVersionString=version,
                 CFBundleVersion=build,
+                **({"MozPublicURLScheme": URL_SCHEME} if "MozPublicURLScheme" in extension_info else {}),
             )
             print(f"keeping PlugIns/{name}")
+        # Safari redirect and share sheet extensions (scripts/build_link_extensions.sh).
+        for source in extensions or []:
+            target = app / "PlugIns" / source.name
+            shutil.copytree(source, target, symlinks=True)
+            set_plist(
+                target / "Info.plist",
+                CFBundleIdentifier=f"{bundle_id}.{source.stem}",
+                CFBundleShortVersionString=version,
+                CFBundleVersion=build,
+            )
+            print(f"added PlugIns/{source.name}")
 
         frameworks = app / "Frameworks"
         frameworks.mkdir(exist_ok=True)
@@ -220,6 +245,9 @@ def package(app_src: Path, helper_src: Path, framework_src: Path, dist_bin: Path
         runtime = prefix + "Frameworks/GeckoView.framework/Frameworks/"
         if runtime + "chrome.manifest" not in names or not any(n.startswith(runtime + "chrome/") for n in names):
             raise ValueError("IPA is missing Gecko's runtime resources (chrome.manifest, chrome/)")
+        for source in extensions or []:
+            if prefix + f"PlugIns/{source.name}/Info.plist" not in names:
+                raise ValueError(f"IPA is missing PlugIns/{source.name}")
         built = plistlib.loads(archive.read(prefix + "Info.plist"))
         if built["CFBundleVersion"] != build:
             raise ValueError("IPA build number mismatch")
@@ -239,13 +267,15 @@ if __name__ == "__main__":
     parser.add_argument("--build", required=True)
     parser.add_argument("--companion", type=Path,
                         help="Reynard's addons/fetchdock folder, bundled as a built-in add-on")
+    parser.add_argument("--extension", type=Path, action="append", default=[],
+                        help="extra .appex to embed under PlugIns (repeatable)")
     parser.add_argument("--missing-report", type=Path,
                         help="write Gecko files skipped because their links dangle")
     args = parser.parse_args()
     try:
         package(args.app, args.helper, args.framework, args.dist_bin, args.default_theme,
                 args.output, args.bundle_id, args.version, args.build, args.missing_report,
-                args.companion)
+                args.companion, args.extension)
     except Exception as failure:  # one greppable line for the CI error summary
         import sys
         import traceback
