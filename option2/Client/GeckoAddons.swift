@@ -384,11 +384,14 @@ enum GeckoAddonPermissionText {
 /// An add-on's toolbar popup, rendered by Gecko.
 final class GeckoAddonPopupViewController: UIViewController, ContentDelegate, NavigationDelegate {
     private let url: String
-    private let session = GeckoSession(isPrivateMode: false, isAddonPopup: true)
+    private let session: GeckoSession
     private let geckoView = GeckoView(frame: .zero)
 
     init(url: String) {
         self.url = url
+        session = GeckoSession(
+            settings: GeckoTabEngine.sessionSettings(for: URL(string: url), isPrivate: false),
+            isPrivateMode: false, isAddonPopup: true)
         super.init(nibName: nil, bundle: nil)
     }
 

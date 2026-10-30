@@ -55,7 +55,7 @@ final class GeckoTabEngine {
     init(host: TabWebView, isPrivate: Bool) {
         self.host = host
         self.isPrivate = isPrivate
-        session = GeckoSession(isPrivateMode: isPrivate)
+        session = GeckoSession(settings: Self.sessionSettings(for: nil, isPrivate: isPrivate), isPrivateMode: isPrivate)
         bridge.engine = self
         attachDelegates()
         GeckoAddonManager.shared.start()
@@ -89,12 +89,15 @@ final class GeckoTabEngine {
             showFirefoxInternalPage(url)
             return
         }
+        applySettings(for: url)
         session.load(url.absoluteString)
     }
 
     func goBack() { session.goBack() }
     func goForward() { session.goForward() }
     func reload(bypassCache: Bool) {
+        // Firefox's Request Desktop Site toggles its domain list, then reloads.
+        if let currentURL { applySettings(for: currentURL) }
         // GeckoSession.LOAD_FLAGS_BYPASS_CACHE
         session.reload(flags: bypassCache ? 1 : 0)
     }
@@ -142,8 +145,15 @@ final class GeckoTabEngine {
 
     // MARK: Events from Gecko
 
-    fileprivate func pageStarted() {
+    fileprivate func pageStarted(_ urlString: String) {
         guard let host else { return }
+        // A link to a site that needs another user agent (AMO, desktop mode)
+        // is reloaded with it, as Reynard does.
+        if let url = URL(string: urlString), ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+           applySettings(for: url) {
+            session.load(urlString)
+            return
+        }
         change("loading") { loading = true }
         change("estimatedProgress") { progress = 0.1 }
         host.navigationDelegate?.webView?(host, didStartProvisionalNavigation: nil)
@@ -209,7 +219,7 @@ final class GeckoTabEngine {
     /// reopen it and reload the page the tab was showing.
     fileprivate func recoverFromContentProcessLoss() {
         session.close()
-        session = GeckoSession(isPrivateMode: isPrivate)
+        session = GeckoSession(settings: Self.sessionSettings(for: currentURL, isPrivate: isPrivate), isPrivateMode: isPrivate)
         attachDelegates()
         session.open()
         geckoView.session = session
@@ -217,6 +227,51 @@ final class GeckoTabEngine {
         if let url = currentURL, url.scheme?.lowercased() != "internal" {
             session.load(url.absoluteString)
         }
+    }
+
+    // MARK: User agent
+
+    /// Reynard's defaults: Gecko on iOS presents itself as Firefox for Android
+    /// (sites, and addons.mozilla.org in particular, do not expect Gecko on
+    /// iOS); Google gets a Chrome-style Android UA; Firefox's Request Desktop
+    /// Site list switches a site to the desktop Firefox UA.
+    static func sessionSettings(for url: URL?, isPrivate: Bool) -> GeckoSessionSettings {
+        let host = url?.host?.lowercased() ?? ""
+        let forcesMobile = host == "addons.mozilla.org" || url?.scheme?.lowercased() == "moz-extension"
+        let desktop = !forcesMobile && (url.map { Tab.ChangeUserAgent.contains(url: $0, isPrivate: isPrivate) } ?? false)
+        let gecko = GeckoRuntime.version.split(whereSeparator: { !$0.isNumber }).first.map(String.init) ?? "0"
+        let userAgent: String
+        if desktop {
+            userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:\(gecko).0) Gecko/20100101 Firefox/\(gecko).0"
+        } else if host.split(separator: ".").contains("google") {
+            let chrome = (Int(gecko) ?? 0) + 4
+            userAgent = "Mozilla/5.0 (Linux; Android 15; Nexus 5 Build/MRA58N) FxQuantum/\(gecko).0 AppleWebKit/537.36 (KHTML, like Gecko) Chrome/\(chrome).0.0.0 Mobile Safari/537.36"
+        } else {
+            userAgent = "Mozilla/5.0 (Android 15; Mobile; rv:\(gecko).0) Gecko/\(gecko).0 Firefox/\(gecko).0"
+        }
+        let platform = desktop ? "Intel Mac OS X 10.15" : "Linux armv81"
+        let mode = desktop ? 1 : 0
+        let languages = Locale.preferredLanguages.isEmpty ? ["en"] : Locale.preferredLanguages
+        return GeckoSessionSettings(
+            websiteMode: WebsiteModeSetting(
+                userAgentOverride: userAgent,
+                platformOverride: platform,
+                appVersionOverride: desktop ? "5.0 (Macintosh)" : "5.0 (Android 15)",
+                oscpuOverride: platform,
+                buildIDOverride: nil,
+                userAgentMode: mode,
+                viewportMode: mode),
+            pageZoom: .default,
+            language: LanguageSetting(codes: languages))
+    }
+
+    /// Returns whether the session's settings changed.
+    @discardableResult
+    private func applySettings(for url: URL) -> Bool {
+        let settings = Self.sessionSettings(for: url, isPrivate: isPrivate)
+        guard settings != session.settings else { return false }
+        session.updateSettings(settings)
+        return true
     }
 
     // MARK: KVO
@@ -249,7 +304,7 @@ final class GeckoTabDelegateBridge: ProgressDelegate, NavigationDelegate, Conten
 
     // ProgressDelegate
     func onPageStart(session: GeckoSession, url: String) {
-        onMain { $0.pageStarted() }
+        onMain { $0.pageStarted(url) }
     }
 
     func onPageStop(session: GeckoSession, success: Bool) {
