@@ -12,17 +12,26 @@
       "name": "Firefox Gecko",
       "bundleIdentifier": "com.soum91.FirefoxGecko",
       "developerName": "soum91",
-      "subtitle": "Experimental Gecko browser with download Live Activity",
-      "localizedDescription": "Gecko XUL.dylib code-signature and dyld dependency diagnostic. Retains essential helper; must re-sign all embedded libraries and helper using your certificate. Launch not verified. Reynard UI.",
+      "subtitle": "Experimental Gecko browser with add-ons and Firefox Sync",
+      "localizedDescription": "Latest full Gecko build: 159.0.2. Includes Gecko helper and app extensions. The later 159.0.3–159.0.5 downloads were diagnostics that removed optional extensions; they are not recommended for normal browsing. Firefox Sync and cookie persistence still require on-device verification.",
       "iconURL": "https://raw.githubusercontent.com/soum91/reynard-browser/main/browser/Reynard/Resources/Assets.xcassets/ReynardFox.appiconset/ReynardFox.png",
       "tintColor": "#FF8C42",
       "category": "utilities",
       "versions": [
         {
+          "version": "159.0.2",
+          "buildVersion": "78951",
+          "date": "2026-10-27",
+          "localizedDescription": "Last full Gecko IPA currently available. Includes helper and app extensions. Re-sign all embedded code and extensions with the same signing team. Firefox Sync and cookie persistence still need on-device verification.",
+          "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/v159.0.2/Firefox-Gecko.ipa",
+          "size": 111398444,
+          "minOSVersion": "16.1"
+        },
+        {
           "version": "159.0.5",
           "buildVersion": "78954",
           "date": "2026-10-28",
-          "localizedDescription": "Gecko XUL.dylib code-signature and dyld dependency diagnostic. Retains essential helper; must re-sign all embedded libraries and helper using your certificate. Launch not verified. Reynard UI.",
+          "localizedDescription": "Diagnostic only: XUL.dylib signature and dyld dependency repair. Launch was not verified. Excludes optional extensions; do not use as the normal browser build.",
           "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/v159.0.5-xul-signature-fix/Firefox-Gecko-XUL-Signature-Fix.ipa",
           "size": 111473848,
           "minOSVersion": "16.1"
@@ -31,7 +40,7 @@
           "version": "159.0.4",
           "buildVersion": "78953",
           "date": "2026-10-28",
-          "localizedDescription": "Gecko launch diagnostic preserving required child-process helper; optional extensions and download widget removed. All embedded executable code requires signing.",
+          "localizedDescription": "Diagnostic only: preserves required child-process helper and removes optional extensions and the download widget.",
           "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/v159.0.4-gecko-helper-test/Firefox-Gecko-Helper-Test.ipa",
           "size": 110832546,
           "minOSVersion": "16.1"
@@ -40,33 +49,24 @@
           "version": "159.0.3",
           "buildVersion": "78952",
           "date": "2026-10-28",
-          "localizedDescription": "Minimal sideload installation test from successful Gecko compile. No app extensions or download Live Activity. Requires re-signing.",
+          "localizedDescription": "Diagnostic only: minimal sideload installation test with no app extensions or download Live Activity.",
           "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/v159.0.3-sideload-test/Firefox-Gecko-Sideload-Test.ipa",
           "size": 110815037,
           "minOSVersion": "16.1"
-        },
-        {
-          "version": "159.0.2",
-          "buildVersion": "78951",
-          "date": "2026-10-27",
-          "localizedDescription": "Experimental Gecko iOS prototype. Full IPA build passed; JIT pairing and download widget packaged. Requires re-signing.",
-          "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/v159.0.2/Firefox-Gecko.ipa",
-          "size": 111398444,
-          "minOSVersion": "16.1"
         }
       ],
-      "version": "159.0.5",
-      "versionDate": "2026-10-28",
-      "versionDescription": "Gecko XUL.dylib code-signature and dyld dependency diagnostic. Retains essential helper; must re-sign all embedded libraries and helper using your certificate. Launch not verified. Reynard UI.",
-      "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/v159.0.5-xul-signature-fix/Firefox-Gecko-XUL-Signature-Fix.ipa",
-      "size": 111473848
+      "version": "159.0.2",
+      "versionDate": "2026-10-27",
+      "versionDescription": "Last full Gecko IPA currently available. Includes helper and app extensions. Re-sign all embedded code and extensions with the same signing team. Firefox Sync and cookie persistence still need on-device verification.",
+      "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/v159.0.2/Firefox-Gecko.ipa",
+      "size": 111398444
     },
     {
       "name": "Firefox Gecko (Native UI)",
       "bundleIdentifier": "com.soum91.FirefoxNativeGecko",
       "developerName": "soum91",
       "subtitle": "Mozilla's Firefox 159 UI with the Reynard Gecko engine",
-      "localizedDescription": "Mozilla's own Firefox 159 app (home, tab tray, menus, settings) with web pages rendered by the Reynard Gecko engine instead of WebKit. Experimental test builds, not an official Mozilla release. Re-sign everything, including Frameworks/XUL.dylib, GeckoView.framework and PlugIns/Reynard Helper.appex.",
+      "localizedDescription": "Mozilla's own Firefox 159 app UI with pages rendered by the Reynard Gecko engine. Experimental. Re-sign all embedded code.",
       "iconURL": "https://raw.githubusercontent.com/soum91/reynard-browser/main/browser/Reynard/Resources/Assets.xcassets/ReynardFox.appiconset/ReynardFox.png",
       "tintColor": "#FF8C42",
       "category": "utilities",
@@ -75,60 +75,15 @@
           "version": "159.0.24",
           "buildVersion": "24",
           "date": "2026-10-30",
-          "localizedDescription": "Build 24. Mozilla's Firefox 159 app (its own UI, tab tray, menus and settings) with web pages rendered by the Reynard Gecko engine instead of WebKit. Re-sign everything, including XUL.dylib, GeckoView.framework and Reynard Helper.appex.",
+          "localizedDescription": "Native UI experiment, separate from the Reynard-shell Firefox Gecko app.",
           "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/native-gecko-159.0-build-24/Firefox-Gecko-Native-159.0-build-24.ipa",
           "size": 365218675,
-          "minOSVersion": "15.0"
-        },
-        {
-          "version": "159.0.23",
-          "buildVersion": "23",
-          "date": "2026-10-30",
-          "localizedDescription": "Build 23. Mozilla's Firefox 159 app (its own UI, tab tray, menus and settings) with web pages rendered by the Reynard Gecko engine instead of WebKit. Re-sign everything, including XUL.dylib, GeckoView.framework and Reynard Helper.appex.",
-          "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/native-gecko-159.0-build-23/Firefox-Gecko-Native-159.0-build-23.ipa",
-          "size": 365213223,
-          "minOSVersion": "15.0"
-        },
-        {
-          "version": "159.0.22",
-          "buildVersion": "22",
-          "date": "2026-10-30",
-          "localizedDescription": "Build 22. Mozilla's Firefox 159 app (its own UI, tab tray, menus and settings) with web pages rendered by the Reynard Gecko engine instead of WebKit. Re-sign everything, including XUL.dylib, GeckoView.framework and Reynard Helper.appex.",
-          "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/native-gecko-159.0-build-22/Firefox-Gecko-Native-159.0-build-22.ipa",
-          "size": 365149710,
-          "minOSVersion": "15.0"
-        },
-        {
-          "version": "159.0.20",
-          "buildVersion": "20",
-          "date": "2026-10-29",
-          "localizedDescription": "Build 20. Mozilla's Firefox 159 app (its own UI, tab tray, menus and settings) with web pages rendered by the Reynard Gecko engine instead of WebKit. Re-sign everything, including XUL.dylib, GeckoView.framework and Reynard Helper.appex.",
-          "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/native-gecko-159.0-build-20/Firefox-Gecko-Native-159.0-build-20.ipa",
-          "size": 365059707,
-          "minOSVersion": "15.0"
-        },
-        {
-          "version": "159.0.18",
-          "buildVersion": "18",
-          "date": "2026-10-29",
-          "localizedDescription": "Build 18. Mozilla's Firefox 159 app (its own UI, tab tray, menus and settings) with web pages rendered by the Reynard Gecko engine instead of WebKit. Re-sign everything, including XUL.dylib, GeckoView.framework and Reynard Helper.appex.",
-          "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/native-gecko-159.0-build-18/Firefox-Gecko-Native-159.0-build-18.ipa",
-          "size": 363272185,
-          "minOSVersion": "15.0"
-        },
-        {
-          "version": "159.0.17",
-          "buildVersion": "17",
-          "date": "2026-10-29",
-          "localizedDescription": "Mozilla's Firefox 159 UI with tabs rendered by the Reynard Gecko engine. Complete Gecko runtime; sideload App Group fix so onboarding works. Test build: re-sign everything including XUL.dylib, GeckoView.framework and Reynard Helper.appex. Reader mode, find in page, downloads and tab thumbnails not working yet.",
-          "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/native-gecko-159.0-build-17/Firefox-Gecko-Native-159.0-build-17.ipa",
-          "size": 363272996,
           "minOSVersion": "15.0"
         }
       ],
       "version": "159.0.24",
       "versionDate": "2026-10-30",
-      "versionDescription": "Build 24. Mozilla's Firefox 159 app (its own UI, tab tray, menus and settings) with web pages rendered by the Reynard Gecko engine instead of WebKit. Re-sign everything, including XUL.dylib, GeckoView.framework and Reynard Helper.appex.",
+      "versionDescription": "Native UI experiment, separate from the Reynard-shell Firefox Gecko app.",
       "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/native-gecko-159.0-build-24/Firefox-Gecko-Native-159.0-build-24.ipa",
       "size": 365218675
     }
