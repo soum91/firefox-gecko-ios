@@ -104,7 +104,6 @@ jobs:
         timeout-minutes: 120
         working-directory: reynard-source
         env:
-          # Prevent the headless macOS terminal-notifier from blocking after success.
           MOZ_NOSPAM: "1"
           CC: clang
           CXX: clang++
@@ -131,6 +130,12 @@ jobs:
           cp dist/Reynard.ipa dist/Firefox-Gecko.ipa
           unzip -p dist/Firefox-Gecko.ipa Payload/Reynard.app/Info.plist | plutil -lint -
           unzip -l dist/Firefox-Gecko.ipa | grep 'FirefoxDownloadWidget.appex'
+          # Full distribution must include the helper plus all three functional
+          # extensions and the Live Activity widget. Never publish a stripped diagnostic IPA.
+          for extension in "Reynard Helper" "OpenIn" "ReynardAutoFill" "FirefoxDownloadWidget"; do
+            unzip -l dist/Firefox-Gecko.ipa | grep -F "PlugIns/$extension.appex/Info.plist" >/dev/null
+          done
+          unzip -l dist/Firefox-Gecko.ipa | grep -F "Frameworks/XUL.dylib" >/dev/null
 
       - name: Upload installable prototype and version metadata
         uses: actions/upload-artifact@v4
@@ -149,7 +154,7 @@ jobs:
           VERSION=$(python3 -c 'import json; print(json.load(open("dist/version.json"))["version"])')
           gh release create "v$VERSION" reynard-source/dist/Firefox-Gecko.ipa \
             --title "Firefox Gecko $VERSION (experimental)" \
-            --notes "Experimental Gecko-powered Reynard foundation with Firefox-style versioning and download Live Activity. This is not Mozilla-signed Firefox; the original Firefox 159 interface and default-browser eligibility are still under development. Re-sign before installation and keep all app extensions." \
+            --notes "Full experimental Gecko-powered Reynard browser. This package retains the Gecko helper, Open In, AutoFill, and Firefox download widget extensions. Re-sign all embedded frameworks, libraries, and extensions with the same team. Firefox Sync, add-ons, and cookie persistence require on-device verification; this is not Mozilla-signed Firefox." \
             --prerelease --latest=false
 
       - name: Update FlareStore source after published release
@@ -171,7 +176,7 @@ jobs:
           build = str(v['buildVersion'])
           date = datetime.datetime.now(datetime.timezone.utc).date().isoformat()
           url = f"https://github.com/{os.environ['GH_REPO']}/releases/download/v{version}/Firefox-Gecko.ipa"
-          note = 'Experimental Gecko iOS prototype with JIT pairing and a download Live Activity. Re-sign the IPA before installing.'
+          note = 'Full experimental Gecko browser package including required helper and app extensions. Re-sign all embedded code with the same team. Firefox Sync, add-ons, and cookie persistence require on-device verification.'
           entry = {
               'version': version,
               'buildVersion': build,
@@ -184,6 +189,8 @@ jobs:
           old = [x for x in app.get('versions', []) if x.get('version') != version]
           app['versions'] = [entry] + old
           app.update({
+              'subtitle': 'Experimental Gecko browser with add-ons and Firefox Sync',
+              'localizedDescription': note,
               'version': version,
               'versionDate': date,
               'versionDescription': note,
