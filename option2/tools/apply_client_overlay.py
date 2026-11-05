@@ -91,6 +91,39 @@ if appDelegate == NSStringFromClass(AppDelegate.self) && GeckoFirefoxBootstrap.i
     print(f"patched {path}")
 
 
+def patch_fxa_keychain_group(root: Path) -> None:
+    """Use the signed app's own Keychain namespace for Firefox Account state.
+
+    Mozilla's shared keychain group is not present in a sideloading profile.
+    Asking Security.framework to write to it silently leaves FxA signed out on
+    the next launch. A nil group scopes credentials to this app's bundle ID.
+    """
+    path = root / "firefox-ios/RustFxA/RustFirefoxAccounts.swift"
+    text = path.read_text(encoding="utf-8")
+    original = """        guard let accessGroupPrefix = Bundle.main.object(forInfoDictionaryKey: "MozDevelopmentTeam") as? String else {
+            fatalError("Missing or invalid 'MozDevelopmentTeam' key in Info.plist")
+        }
+        let accessGroupIdentifier = AppInfo.keychainAccessGroupWithPrefix(accessGroupPrefix)
+        return FxAccountManager(
+            config: config,
+            deviceConfig: deviceConfig,
+            applicationScopes: [OAuthScope.profile, OAuthScope.oldSync, OAuthScope.session],
+            keychainAccessGroup: accessGroupIdentifier
+        )"""
+    replacement = """        // Firefox Gecko is independently signed; it cannot use Mozilla's
+        // shared Keychain group. Nil uses this app's own signed access group,
+        // so the FxA refresh token remains readable after relaunch.
+        return FxAccountManager(
+            config: config,
+            deviceConfig: deviceConfig,
+            applicationScopes: [OAuthScope.profile, OAuthScope.oldSync, OAuthScope.session],
+            keychainAccessGroup: nil
+        )"""
+    text = replace_once(text, original, replacement, str(path))
+    path.write_text(text, encoding="utf-8")
+    print(f"patched sideload FxA keychain scope in {path.relative_to(root)}")
+
+
 def patch_app_delegate_lookups(root: Path) -> None:
     replaced = 0
     for path in sorted((root / CLIENT).rglob("*.swift")):
@@ -406,6 +439,7 @@ def apply(root: Path, reynard: Path) -> None:
     if not (root / "BrowserKit/Binaries/GeckoView.xcframework").is_dir():
         raise ValueError("Run apply_overlay.py first: BrowserKit has no GeckoView binary target")
     patch_app_delegate_lookups(root)
+    patch_fxa_keychain_group(root)
     patch_main(root)
     patch_tab_webview(root)
     patch_empty_onboarding(root)
