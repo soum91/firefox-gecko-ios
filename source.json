@@ -1,72 +1,19 @@
 {
   "name": "Firefox Gecko iOS",
   "identifier": "com.soum91.firefoxgecko.source",
-  "subtitle": "Experimental Gecko-powered iOS browser",
-  "description": "Development releases of an independently built Gecko iOS browser based on Reynard. Not an official Mozilla Firefox distribution. IPAs must be re-signed for installation.",
+  "subtitle": "Experimental Firefox UI with Gecko engine",
+  "description": "Experimental Firefox native UI shell using Reynard Gecko for page rendering. Not an official Mozilla distribution.",
   "iconURL": "https://raw.githubusercontent.com/soum91/reynard-browser/main/browser/Reynard/Resources/Assets.xcassets/ReynardFox.appiconset/ReynardFox.png",
   "website": "https://github.com/soum91/firefox-gecko-ios",
   "sourceURL": "https://raw.githubusercontent.com/soum91/firefox-gecko-ios/main/source.json",
   "tintColor": "#FF8C42",
   "apps": [
     {
-      "name": "Firefox Gecko",
-      "bundleIdentifier": "com.soum91.FirefoxGecko",
-      "developerName": "soum91",
-      "subtitle": "Experimental Gecko browser with add-ons and Firefox Sync",
-      "localizedDescription": "Full experimental Gecko browser package including required helper and app extensions. Re-sign all embedded code with the same team. Firefox Sync, add-ons, and cookie persistence require on-device verification.",
-      "iconURL": "https://raw.githubusercontent.com/soum91/reynard-browser/main/browser/Reynard/Resources/Assets.xcassets/ReynardFox.appiconset/ReynardFox.png",
-      "tintColor": "#FF8C42",
-      "category": "utilities",
-      "versions": [
-        {
-          "version": "159.0.5",
-          "buildVersion": "78954",
-          "date": "2026-11-05",
-          "localizedDescription": "Full experimental Gecko browser package including required helper and app extensions. Re-sign all embedded code with the same team. Firefox Sync, add-ons, and cookie persistence require on-device verification.",
-          "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/v159.0.5/Firefox-Gecko.ipa",
-          "size": 111398459,
-          "minOSVersion": "16.1"
-        },
-        {
-          "version": "159.0.2",
-          "buildVersion": "78951",
-          "date": "2026-10-27",
-          "localizedDescription": "Last full Gecko IPA currently available. Includes helper and app extensions. Re-sign all embedded code and extensions with the same signing team. Firefox Sync and cookie persistence still need on-device verification.",
-          "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/v159.0.2/Firefox-Gecko.ipa",
-          "size": 111398444,
-          "minOSVersion": "16.1"
-        },
-        {
-          "version": "159.0.4",
-          "buildVersion": "78953",
-          "date": "2026-10-28",
-          "localizedDescription": "Diagnostic only: preserves required child-process helper and removes optional extensions and the download widget.",
-          "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/v159.0.4-gecko-helper-test/Firefox-Gecko-Helper-Test.ipa",
-          "size": 110832546,
-          "minOSVersion": "16.1"
-        },
-        {
-          "version": "159.0.3",
-          "buildVersion": "78952",
-          "date": "2026-10-28",
-          "localizedDescription": "Diagnostic only: minimal sideload installation test with no app extensions or download Live Activity.",
-          "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/v159.0.3-sideload-test/Firefox-Gecko-Sideload-Test.ipa",
-          "size": 110815037,
-          "minOSVersion": "16.1"
-        }
-      ],
-      "version": "159.0.5",
-      "versionDate": "2026-11-05",
-      "versionDescription": "Full experimental Gecko browser package including required helper and app extensions. Re-sign all embedded code with the same team. Firefox Sync, add-ons, and cookie persistence require on-device verification.",
-      "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/v159.0.5/Firefox-Gecko.ipa",
-      "size": 111398459
-    },
-    {
       "name": "Firefox Gecko (Native UI)",
       "bundleIdentifier": "com.soum91.FirefoxNativeGecko",
       "developerName": "soum91",
-      "subtitle": "Mozilla's Firefox 159 UI with the Reynard Gecko engine",
-      "localizedDescription": "Mozilla's own Firefox 159 app UI with pages rendered by the Reynard Gecko engine. Experimental. Re-sign all embedded code.",
+      "subtitle": "Firefox native UI with Gecko page rendering",
+      "localizedDescription": "Experimental Firefox iOS native interface rendered with Gecko through Reynard. This is the Native UI app, separate from the Reynard shell. Re-sign all embedded code, GeckoView.framework, XUL.dylib, and the helper with the same team.",
       "iconURL": "https://raw.githubusercontent.com/soum91/reynard-browser/main/browser/Reynard/Resources/Assets.xcassets/ReynardFox.appiconset/ReynardFox.png",
       "tintColor": "#FF8C42",
       "category": "utilities",
@@ -75,7 +22,7 @@
           "version": "159.0.24",
           "buildVersion": "24",
           "date": "2026-10-30",
-          "localizedDescription": "Native UI experiment, separate from the Reynard-shell Firefox Gecko app.",
+          "localizedDescription": "Firefox Native UI build 24. Firefox's own interface with Gecko page rendering; separate from Reynard shell app. Re-sign all frameworks, XUL.dylib, and app extensions with the same team.",
           "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/native-gecko-159.0-build-24/Firefox-Gecko-Native-159.0-build-24.ipa",
           "size": 365218675,
           "minOSVersion": "15.0"
@@ -83,7 +30,7 @@
       ],
       "version": "159.0.24",
       "versionDate": "2026-10-30",
-      "versionDescription": "Native UI experiment, separate from the Reynard-shell Firefox Gecko app.",
+      "versionDescription": "Firefox Native UI build 24. Firefox's own interface with Gecko page rendering; separate from Reynard shell app. Re-sign all frameworks, XUL.dylib, and app extensions with the same team.",
       "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/native-gecko-159.0-build-24/Firefox-Gecko-Native-159.0-build-24.ipa",
       "size": 365218675
     }
