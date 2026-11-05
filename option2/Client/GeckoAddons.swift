@@ -21,9 +21,14 @@ final class GeckoAddonPackageDownloads: @unchecked Sendable {
 
     static func isAddonPackage(_ response: ExternalResponseInfo) -> Bool {
         guard let url = URL(string: response.url),
-              url.host?.lowercased() == "addons.mozilla.org" else { return false }
-        let path = url.path.lowercased()
-        return path.contains("/downloads/file/") && path.hasSuffix(".xpi")
+              let host = url.host?.lowercased(),
+              (host == "addons.mozilla.org" || host.hasSuffix(".addons.mozilla.org") ||
+               host == "mozilla.org" || host.hasSuffix(".mozilla.org")) else { return false }
+        // AMO's desktop Firefox button and its explicit "Download file" link
+        // can use different download routes, but both deliver signed .xpi files.
+        // Key off the package extension rather than one AMO route shape.
+        let filename = response.filename?.lowercased() ?? ""
+        return url.path.lowercased().hasSuffix(".xpi") || filename.hasSuffix(".xpi")
     }
 
     func add(_ path: String) {
