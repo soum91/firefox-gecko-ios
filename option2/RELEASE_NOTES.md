@@ -1,5 +1,7 @@
 Mozilla's Firefox 159 app (its own UI, tab tray, menus and settings) with web pages rendered by the Reynard Gecko engine instead of WebKit.
 
+**Persistence correction in the next build:** Gecko now gets an explicit app-private profile directory for site cookies and installed WebExtensions. Firefox Account/Sync credentials use this sideloaded app's own Keychain access group instead of Mozilla's unavailable shared group. Because the Keychain namespace changes, Firefox Account may require one sign-in after updating; the new token should then remain available across relaunches.
+
 **Test build.** Also listed in the FlareStore feed as "Firefox Gecko (Native UI)". The IPA is unsigned: re-sign it with your certificate so that `Frameworks/XUL.dylib`, `Frameworks/GeckoView.framework` and `PlugIns/Reynard Helper.appex` are signed too, or Gecko cannot start its content process.
 
 ## How it is put together
