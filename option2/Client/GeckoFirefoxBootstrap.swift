@@ -41,11 +41,47 @@ enum GeckoFirefoxBootstrap {
     ) -> Never {
         firefoxDelegateObject = firefoxDelegate
         isGeckoRunning = true
+        configurePersistentGeckoProfile()
         configureSandboxExtension()
         GeckoAppDelegateForwarding.prepare()
         GeckoRuntime.main(argc: argc, argv: argv)
         // XRE_main does not return on iOS; UIApplicationMain never exits.
         exit(0)
+    }
+
+    /// Gecko owns cookies, site storage, and installed WebExtensions separately
+    /// from Firefox's native profile. Give XPCOM one stable, app-private location
+    /// before GeckoRuntime.main starts so those stores survive process restarts
+    /// and ordinary sideloaded app updates.
+    private static func configurePersistentGeckoProfile() {
+        guard let applicationSupport = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first else {
+            return
+        }
+
+        let profile = applicationSupport
+            .appendingPathComponent("FirefoxNativeGecko", isDirectory: true)
+            .appendingPathComponent("GeckoProfile", isDirectory: true)
+
+        do {
+            try FileManager.default.createDirectory(
+                at: profile,
+                withIntermediateDirectories: true
+            )
+            try FileManager.default.setAttributes(
+                [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+                ofItemAtPath: profile.path
+            )
+        } catch {
+            return
+        }
+
+        // These are the same Gecko directory overrides used by Reynard's
+        // unsandboxed iOS startup, now pinned to persistent sandbox storage.
+        setenv("MOZ_APP_DATA", profile.path, 1)
+        setenv("MOZ_LOCAL_APP_DATA", profile.path, 1)
     }
 
     /// Same as Reynard's main.swift: lets Gecko's sandboxed content processes
