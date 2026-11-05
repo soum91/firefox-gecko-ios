@@ -124,6 +124,123 @@ def patch_fxa_keychain_group(root: Path) -> None:
     print(f"patched sideload FxA keychain scope in {path.relative_to(root)}")
 
 
+
+def patch_fxa_account_file_fallback(root: Path) -> None:
+    """Use Reynard's protected app-private fallback when FxA Keychain storage fails."""
+    path = root / "MozillaRustComponents/Sources/MozillaRustComponentsWrapper/FxAClient/FxAccountStorage.swift"
+    text = path.read_text(encoding="utf-8")
+
+    class_start = "class KeyChainAccountStorage {"
+    class_with_fallback = """class KeyChainAccountStorage {
+    private var fallbackURL: URL? {
+        guard let supportDirectory = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first else { return nil }
+        return supportDirectory
+            .appendingPathComponent("FirefoxNativeGecko", isDirectory: true)
+            .appendingPathComponent("FxAAccount.json", isDirectory: false)
+    }
+
+    private func removeFallbackFile() {
+        guard let fallbackURL else { return }
+        try? FileManager.default.removeItem(at: fallbackURL)
+    }
+
+    var keychainWrapper: FxAKeychain"""
+    text = replace_once(text, class_start, class_with_fallback, str(path))
+
+    keychain_read_end = """        if let json = keychainWrapper
+            .getKeyValue(key: KeyChainAccountStorage.keychainKey,
+                         accessibility: KeyChainAccountStorage.accessibility)
+        {
+            do {
+                return try PersistedFirefoxAccount.fromJSON(data: json)
+            } catch {
+                FxALog.error("FxAccount internal state de-serialization failed.")
+            }
+        }
+
+        guard let fallbackURL = fallbackURL,
+              let data = try? Data(contentsOf: fallbackURL),
+              let json = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        do {
+            return try PersistedFirefoxAccount.fromJSON(data: json)
+        } catch {
+            FxALog.error("FxAccount protected file fallback could not be decoded.")
+            return nil
+        }"""
+    keychain_read_start = """        if let json = keychainWrapper
+            .getKeyValue(key: KeyChainAccountStorage.keychainKey,
+                         accessibility: KeyChainAccountStorage.accessibility)
+        {
+            do {
+                return try PersistedFirefoxAccount.fromJSON(data: json)
+            } catch {
+                FxALog.error("FxAccount internal state de-serialization failed: \\(error).")
+                return nil
+            }
+        }
+
+        return nil"""
+    text = replace_once(text, keychain_read_start, keychain_read_end, str(path))
+
+    keychain_write_start = """        if !keychainWrapper.setKeyValue(
+            json,
+            key: KeyChainAccountStorage.keychainKey,
+            accessibility: KeyChainAccountStorage.accessibility
+        ) {
+            FxALog.error("Could not write account state.")
+        }"""
+    keychain_write_end = """        if keychainWrapper.setKeyValue(
+            json,
+            key: KeyChainAccountStorage.keychainKey,
+            accessibility: KeyChainAccountStorage.accessibility
+        ) {
+            removeFallbackFile()
+            return
+        }
+
+        guard let fallbackURL else {
+            FxALog.error("Could not write account state or locate its protected fallback.")
+            return
+        }
+        do {
+            try FileManager.default.createDirectory(
+                at: fallbackURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true,
+                attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication]
+            )
+            try Data(json.utf8).write(
+                to: fallbackURL,
+                options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication]
+            )
+            FxALog.info("Saved Firefox Account state to its protected app-private fallback.")
+        } catch {
+            FxALog.error("Could not persist Firefox Account state.")
+        }"""
+    text = replace_once(text, keychain_write_start, keychain_write_end, str(path))
+
+    keychain_clear = """        if !keychainWrapper.removeObject(
+            key: KeyChainAccountStorage.keychainKey,
+            accessibility: KeyChainAccountStorage.accessibility
+        ) {
+            FxALog.error("Could not clear account state.")
+        }"""
+    clear_with_fallback = """        if !keychainWrapper.removeObject(
+            key: KeyChainAccountStorage.keychainKey,
+            accessibility: KeyChainAccountStorage.accessibility
+        ) {
+            FxALog.error("Could not clear account state from Keychain.")
+        }
+        removeFallbackFile()"""
+    text = replace_once(text, keychain_clear, clear_with_fallback, str(path))
+    path.write_text(text, encoding="utf-8")
+    print(f"patched protected FxA account fallback in {path.relative_to(root)}")
+
+
 def patch_app_delegate_lookups(root: Path) -> None:
     replaced = 0
     for path in sorted((root / CLIENT).rglob("*.swift")):
@@ -440,6 +557,7 @@ def apply(root: Path, reynard: Path) -> None:
         raise ValueError("Run apply_overlay.py first: BrowserKit has no GeckoView binary target")
     patch_app_delegate_lookups(root)
     patch_fxa_keychain_group(root)
+    patch_fxa_account_file_fallback(root)
     patch_main(root)
     patch_tab_webview(root)
     patch_empty_onboarding(root)
