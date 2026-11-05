@@ -145,9 +145,7 @@ def patch_fxa_account_file_fallback(root: Path) -> None:
     private func removeFallbackFile() {
         guard let fallbackURL else { return }
         try? FileManager.default.removeItem(at: fallbackURL)
-    }
-
-    var keychainWrapper: FxAKeychain"""
+    }"""
     text = replace_once(text, class_start, class_with_fallback, str(path))
 
     keychain_read_end = """        if let json = keychainWrapper
