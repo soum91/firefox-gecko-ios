@@ -61,11 +61,16 @@ enum GeckoFirefoxBootstrap {
             return
         }
 
-        let profile = applicationSupport
+        let geckoHome = applicationSupport
             .appendingPathComponent("FirefoxNativeGecko", isDirectory: true)
+        let profile = geckoHome
             .appendingPathComponent("GeckoProfile", isDirectory: true)
 
         do {
+            try FileManager.default.createDirectory(
+                at: geckoHome,
+                withIntermediateDirectories: true
+            )
             try FileManager.default.createDirectory(
                 at: profile,
                 withIntermediateDirectories: true
@@ -80,6 +85,10 @@ enum GeckoFirefoxBootstrap {
 
         // These are the same Gecko directory overrides used by Reynard's
         // unsandboxed iOS startup, now pinned to persistent sandbox storage.
+        // Gecko's profile service locates profiles.ini relative to HOME.
+        // Pin HOME to app-private persistent storage before XRE_main so every
+        // launch resolves the same Gecko profile (cookies, site data, Sync).
+        setenv("HOME", geckoHome.path, 1)
         setenv("MOZ_APP_DATA", profile.path, 1)
         setenv("MOZ_LOCAL_APP_DATA", profile.path, 1)
     }
