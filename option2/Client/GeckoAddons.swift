@@ -500,7 +500,7 @@ final class GeckoAddonsViewController: UITableViewController {
     }
 
     override func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
-        section == 1 ? "Search Mozilla Add-ons and install signed Firefox for Android extensions. Gecko will show each extension's requested permissions." : nil
+        section == 1 ? "Search Mozilla Add-ons and install signed Firefox desktop extensions. Gecko will show each extension's requested permissions." : nil
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -589,7 +589,7 @@ final class GeckoAddonsViewController: UITableViewController {
 }
 
 
-/// Search and install Mozilla-listed Firefox for Android add-ons without relying
+/// Search and install Mozilla-listed Firefox desktop add-ons without relying
 /// on addons.mozilla.org's browser detection, which treats this Gecko iOS shell
 /// as Firefox for iOS and disables its install button.
 @MainActor
@@ -695,7 +695,8 @@ final class GeckoAddonCatalogViewController: UITableViewController, UISearchResu
             do {
                 var components = URLComponents(string: "https://addons.mozilla.org/api/v5/addons/search/")!
                 components.queryItems = [
-                    URLQueryItem(name: "app", value: "android"),
+                    URLQueryItem(name: "app", value: "firefox"),
+                    URLQueryItem(name: "appversion", value: "159.0"),
                     URLQueryItem(name: "type", value: "extension"),
                     URLQueryItem(name: "page_size", value: "40"),
                     URLQueryItem(name: "sort", value: query.isEmpty ? "users" : "relevance"),
@@ -725,7 +726,7 @@ final class GeckoAddonCatalogViewController: UITableViewController, UISearchResu
     }
 
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        isLoading ? "Searching Mozilla Add-ons…" : "Firefox for Android extensions"
+        isLoading ? "Searching Mozilla Add-ons…" : "Firefox desktop extensions"
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
