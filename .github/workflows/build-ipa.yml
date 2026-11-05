@@ -135,7 +135,7 @@ jobs:
           for extension in "Reynard Helper" "OpenIn" "ReynardAutoFill" "FirefoxDownloadWidget"; do
             unzip -l dist/Firefox-Gecko.ipa | grep -F "PlugIns/$extension.appex/Info.plist" >/dev/null
           done
-          unzip -l dist/Firefox-Gecko.ipa | grep -F "Frameworks/XUL.dylib" >/dev/null
+          unzip -Z1 dist/Firefox-Gecko.ipa | grep -Fx "Payload/Reynard.app/Frameworks/XUL" >/dev/null
 
       - name: Upload installable prototype and version metadata
         uses: actions/upload-artifact@v4
