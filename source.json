@@ -13,11 +13,20 @@
       "bundleIdentifier": "com.soum91.FirefoxGecko",
       "developerName": "soum91",
       "subtitle": "Experimental Gecko browser with add-ons and Firefox Sync",
-      "localizedDescription": "Latest full Gecko build: 159.0.2. Includes Gecko helper and app extensions. The later 159.0.3–159.0.5 downloads were diagnostics that removed optional extensions; they are not recommended for normal browsing. Firefox Sync and cookie persistence still require on-device verification.",
+      "localizedDescription": "Full experimental Gecko browser package including required helper and app extensions. Re-sign all embedded code with the same team. Firefox Sync, add-ons, and cookie persistence require on-device verification.",
       "iconURL": "https://raw.githubusercontent.com/soum91/reynard-browser/main/browser/Reynard/Resources/Assets.xcassets/ReynardFox.appiconset/ReynardFox.png",
       "tintColor": "#FF8C42",
       "category": "utilities",
       "versions": [
+        {
+          "version": "159.0.5",
+          "buildVersion": "78954",
+          "date": "2026-11-05",
+          "localizedDescription": "Full experimental Gecko browser package including required helper and app extensions. Re-sign all embedded code with the same team. Firefox Sync, add-ons, and cookie persistence require on-device verification.",
+          "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/v159.0.5/Firefox-Gecko.ipa",
+          "size": 111398459,
+          "minOSVersion": "16.1"
+        },
         {
           "version": "159.0.2",
           "buildVersion": "78951",
@@ -25,15 +34,6 @@
           "localizedDescription": "Last full Gecko IPA currently available. Includes helper and app extensions. Re-sign all embedded code and extensions with the same signing team. Firefox Sync and cookie persistence still need on-device verification.",
           "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/v159.0.2/Firefox-Gecko.ipa",
           "size": 111398444,
-          "minOSVersion": "16.1"
-        },
-        {
-          "version": "159.0.5",
-          "buildVersion": "78954",
-          "date": "2026-10-28",
-          "localizedDescription": "Diagnostic only: XUL.dylib signature and dyld dependency repair. Launch was not verified. Excludes optional extensions; do not use as the normal browser build.",
-          "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/v159.0.5-xul-signature-fix/Firefox-Gecko-XUL-Signature-Fix.ipa",
-          "size": 111473848,
           "minOSVersion": "16.1"
         },
         {
@@ -55,11 +55,11 @@
           "minOSVersion": "16.1"
         }
       ],
-      "version": "159.0.2",
-      "versionDate": "2026-10-27",
-      "versionDescription": "Last full Gecko IPA currently available. Includes helper and app extensions. Re-sign all embedded code and extensions with the same signing team. Firefox Sync and cookie persistence still need on-device verification.",
-      "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/v159.0.2/Firefox-Gecko.ipa",
-      "size": 111398444
+      "version": "159.0.5",
+      "versionDate": "2026-11-05",
+      "versionDescription": "Full experimental Gecko browser package including required helper and app extensions. Re-sign all embedded code with the same team. Firefox Sync, add-ons, and cookie persistence require on-device verification.",
+      "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/v159.0.5/Firefox-Gecko.ipa",
+      "size": 111398459
     },
     {
       "name": "Firefox Gecko (Native UI)",
