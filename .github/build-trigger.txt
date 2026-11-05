@@ -1,1 +1,2 @@
 Full Gecko release build with Gecko helper, add-ons, AutoFill, and download widget. Triggered 2026-11-04 after fixing diagnostic IPA feed promotion.
+Retry after correcting packaged XUL Mach-O path verification (2026-11-05).
