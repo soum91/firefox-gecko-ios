@@ -6,8 +6,8 @@ Mozilla Firefox for iOS 159's native interface with pages rendered by the Gecko 
 
 - Firefox's own home screen, tab tray, menus, settings and browser controls.
 - Gecko sessions render browser tabs. Cookies, site storage and installed WebExtensions use a persistent app-private Gecko profile.
-- Firefox Accounts/Sync stays enabled. Sideloaded builds use the app's own Keychain group for account tokens because they cannot access Mozilla's shared group.
-- Settings > Add-ons manages installed extensions. The next native build adds a searchable AMO catalog for Firefox for Android extensions and installs the signed XPI through Gecko's permission prompt.
+- Firefox Accounts/Sync stays enabled. Sideloaded builds use the app's own Keychain group, with a protected app-private file fallback if Keychain storage fails, following Reynard's Sync storage behavior.
+- Settings > Add-ons manages installed extensions. The next native build adds a searchable AMO catalog for Firefox desktop extensions compatible with Gecko 159 and installs their signed XPI through Gecko's permission prompt.
 - AMO's website still identifies this app as Firefox for iOS and disables its web install button. Use the in-app catalog instead.
 
 The profile and Keychain changes are in the source branch; persistence across launches still needs confirmation on a device after installing the build.
