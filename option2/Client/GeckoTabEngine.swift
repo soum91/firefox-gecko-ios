@@ -237,8 +237,13 @@ final class GeckoTabEngine {
     /// Site list switches a site to the desktop Firefox UA.
     static func sessionSettings(for url: URL?, isPrivate: Bool) -> GeckoSessionSettings {
         let host = url?.host?.lowercased() ?? ""
-        let forcesMobile = host == "addons.mozilla.org" || url?.scheme?.lowercased() == "moz-extension"
-        let desktop = !forcesMobile && (url.map { Tab.ChangeUserAgent.contains(url: $0, isPrivate: isPrivate) } ?? false)
+        // AMO must see desktop Firefox to offer desktop WebExtensions.
+        // The downloaded signed XPI is handed to the same Gecko add-on runtime
+        // as the Reynard shell.
+        let forcesAMODesktop = host == "addons.mozilla.org" || host.hasSuffix(".addons.mozilla.org")
+        let forcesMobile = url?.scheme?.lowercased() == "moz-extension"
+        let desktop = !forcesMobile && (forcesAMODesktop ||
+            (url.map { Tab.ChangeUserAgent.contains(url: $0, isPrivate: isPrivate) } ?? false))
         let gecko = GeckoRuntime.version.split(whereSeparator: { !$0.isNumber }).first.map(String.init) ?? "0"
         let userAgent: String
         if desktop {
