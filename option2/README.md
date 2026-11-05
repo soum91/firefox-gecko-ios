@@ -1,46 +1,24 @@
-# Option 2: Original Firefox iOS 159 front end, Reynard Gecko engine
+# Firefox Gecko iOS
 
-Goal: retain **Mozilla's actual native Firefox UI**, home, tab tray, browser menus, settings and icons, while using Reynard Gecko for page rendering and add-ons. Keep Firefox Accounts/Sync enabled, store account tokens under the sideloaded app's own Keychain scope, and keep Gecko cookies and WebExtensions in a stable app-private profile.
+Mozilla Firefox for iOS 159's native interface with pages rendered by the Gecko engine. This is the **Firefox Gecko (Native UI)** app, separate from the Reynard browser shell.
 
-## Verified work
+## Current Native UI behavior
 
-- Uses the exact public Mozilla source tag `firefox-v159.0` instead of copying Reynard's UI.
-- Identified Firefox's `BrowserKit/Sources/WebEngine/Engine.swift`, `EngineSession.swift` and `EngineView.swift` abstraction.
-- Implemented a first `ReynardGeckoEngine` adapter that maps URL loading, reload, navigation, progress, title, page zoom, and Gecko history to BrowserKit interfaces.
-- Added an overlay script to include `GeckoView.xcframework` in BrowserKit as a SwiftPM binary target.
-- Recovered a device `GeckoView.xcframework` from the existing successful `v159.0.2` Reynard IPA. This does **not** recompile Gecko.
-- Syntax/preflight checks pass. A full link/startup has **not** passed yet.
+- Firefox's own home screen, tab tray, menus, settings and browser controls.
+- Gecko sessions render browser tabs. Cookies, site storage and installed WebExtensions use a persistent app-private Gecko profile.
+- Firefox Accounts/Sync stays enabled. Sideloaded builds use the app's own Keychain group for account tokens because they cannot access Mozilla's shared group.
+- Settings > Add-ons manages installed extensions. The next native build adds a searchable AMO catalog for Firefox for Android extensions and installs the signed XPI through Gecko's permission prompt.
+- AMO's website still identifies this app as Firefox for iOS and disables its web install button. Use the in-app catalog instead.
 
-Device framework artifact run:
+The profile and Keychain changes are in the source branch; persistence across launches still needs confirmation on a device after installing the build.
 
-https://github.com/soum91/firefox-gecko-ios/actions/runs/40616713433
+## Build and FlareStore
 
-## Apply to upstream Firefox source
+The native app work is on the `firefox-native-gecko` branch. The FlareStore source feed is `main/source.json` and contains only the Native UI app entry. The build workflow produces an unsigned IPA; re-sign the Gecko framework, XUL binary, and helper extension with the same team before installing.
 
-```sh
-git clone --depth 1 --branch firefox-v159.0 https://github.com/mozilla-mobile/firefox-ios.git firefox-source
-# Download the previously built device GeckoView xcframework artifact
-# and unpack it so /path/to/GeckoView.xcframework/Info.plist exists.
-python3 option2/tools/apply_overlay.py firefox-source /path/to/GeckoView.xcframework
-```
+## Known limitations
 
-This copies the adapter into Firefox's BrowserKit `WebEngine` source and adds a binary `GeckoView` dependency. It deliberately **does not** redirect the production engine factory yet, because Gecko's runtime and child process resources must first be initialized. Doing so prematurely would crash Firefox.
-
-## Important Firefox 159 architecture finding
-
-The production Firefox 159 Client still uses its **legacy** `firefox-ios/Client/TabManagement/TabWebView.swift` class, which inherits from `WKWebView`. The main `Tab.swift` stores `TabWebView` and the native BrowserViewController tracks `WKWebView` instances. The new BrowserKit `WebEngine` layer is not yet the complete production rendering path. Therefore **adding the adapter to BrowserKit alone does not replace Firefox's active web engine**.
-
-Production migration must refactor the Client tab/webview contract, navigation state observers, browser display container, and WebKit-dependent features so each Firefox tab uses a Reynard Gecko session. Do not label an IPA Gecko-powered merely because the `ReynardGeckoEngine.swift` file is compiled.
-
-## Required before a working IPA
-
-1. Integrate `GeckoRuntime.main` with Firefox startup, the Gecko helper/XPC process entry points and runtime assets; embed and re-sign those alongside `GeckoView.framework`.
-2. Inject `ReynardGeckoEngine` into Firefox's actual `Engine` factory in place of `WKEngine`, with correct private mode sessions and restore semantics.
-3. Implement all remaining Firefox engine surface, including security/permissions, reader mode, media capture, contextual menus, native selection, per-tab protection, WebKit-only components and downloads.
-4. Hook Reynard add-ons, JIT pairing, background FetchDock downloads and Live Activities to the unchanged Firefox controls.
-5. Keep Firefox Accounts/Sync enabled with the sideloaded app's own Keychain access group; validate sign-in survives relaunch and keep Gecko data in persistent app storage.
-6. Produce a signed-on-device test and validate real navigation before publishing a FlareStore release.
-
-The native Firefox UI remains experimental. The build uses its own bundle ID and Keychain namespace; it does not inherit Mozilla's signature or privileged browser entitlements.
-
-The current `main` release is the **older Reynard UI diagnostic** and is not an output of this branch.
+- WebKit-only Firefox features are not bridged in Gecko tabs, including reader mode, find in page, password autofill and some page metadata.
+- Firefox's back/forward history menu, tab thumbnails, pull to refresh and link context menu are not available in Gecko tabs.
+- Some WebExtensions may not work because they require APIs GeckoView does not implement or are restricted to desktop Firefox.
+- JavaScript JIT is unavailable in this sideloaded build.
