@@ -1,6 +1,6 @@
 # Option 2: Original Firefox iOS 159 front end, Reynard Gecko engine
 
-Goal: retain **Mozilla's actual native Firefox UI**, home, tab tray, browser menus, settings and icons, while replacing the rendering engine and adding Reynard's Gecko/JIT/add-on/FetchDock functionality. Firefox Sync will be excluded.
+Goal: retain **Mozilla's actual native Firefox UI**, home, tab tray, browser menus, settings and icons, while using Reynard Gecko for page rendering and add-ons. Keep Firefox Accounts/Sync enabled, store account tokens under the sideloaded app's own Keychain scope, and keep Gecko cookies and WebExtensions in a stable app-private profile.
 
 ## Verified work
 
@@ -38,9 +38,9 @@ Production migration must refactor the Client tab/webview contract, navigation s
 2. Inject `ReynardGeckoEngine` into Firefox's actual `Engine` factory in place of `WKEngine`, with correct private mode sessions and restore semantics.
 3. Implement all remaining Firefox engine surface, including security/permissions, reader mode, media capture, contextual menus, native selection, per-tab protection, WebKit-only components and downloads.
 4. Hook Reynard add-ons, JIT pairing, background FetchDock downloads and Live Activities to the unchanged Firefox controls.
-5. Disable Firefox Sync without removing native Firefox settings; test all app extensions and signing.
+5. Keep Firefox Accounts/Sync enabled with the sideloaded app's own Keychain access group; validate sign-in survives relaunch and keep Gecko data in persistent app storage.
 6. Produce a signed-on-device test and validate real navigation before publishing a FlareStore release.
 
-No official Mozilla signatures, team identifier or privileged browser entitlements transfer from the original IPA. `org.mozilla.ios.Firefox` remains a *desired experiment*, not a claim of App Store recognition. An independent signing identity will ordinarily be necessary.
+The native Firefox UI remains experimental. The build uses its own bundle ID and Keychain namespace; it does not inherit Mozilla's signature or privileged browser entitlements.
 
 The current `main` release is the **older Reynard UI diagnostic** and is not an output of this branch.
