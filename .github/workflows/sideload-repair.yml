@@ -18,6 +18,15 @@ jobs:
       - name: Checkout packaging scripts and feed
         uses: actions/checkout@v4
 
+      - name: Verify installed version UI contract
+        shell: bash
+        run: |
+          if command -v python3 >/dev/null 2>&1; then
+            python3 "$GITHUB_WORKSPACE/scripts/check_version_ui.py"
+          else
+            python "$GITHUB_WORKSPACE/scripts/check_version_ui.py"
+          fi
+
       - name: Install lightweight signing utility
         run: |
           brew install ldid

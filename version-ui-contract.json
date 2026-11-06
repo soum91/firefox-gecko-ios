@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "targets": [
+    {
+      "name": "Firefox upstream iOS About screen",
+      "upstream_ui": true,
+      "evidence": [
+        {
+          "path": "scripts/repackage_sideload.py",
+          "contains": [
+            "CFBundleShortVersionString",
+            "CFBundleVersion",
+            "version"
+          ]
+        }
+      ]
+    }
+  ]
+}
