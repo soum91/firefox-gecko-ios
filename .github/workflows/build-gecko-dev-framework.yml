@@ -28,11 +28,13 @@ concurrency:
   group: gecko-dev-framework-${{ github.ref }}
   cancel-in-progress: false
 env:
-  REYNARD_REF: db5d418862893398eff76d1b38391f1c928eb7f7
+  # One-shot stable build for a commit marked [timbre-fast]. Other commits
+  # keep the optional-signing engine pin, without compiling it automatically.
+  REYNARD_REF: ${{ contains(github.event.head_commit.message, '[timbre-fast]') && '55eecc5b63114b0072bf14bd4c55acec01e3a40a' || 'db5d418862893398eff76d1b38391f1c928eb7f7' }}
   XCODE_VERSION: '26.5'
   # Bump only when the Gecko build flags or the archive layout change.
   # v2: links in dist/ are resolved, so the archive is self-contained.
-  ENGINE_SCHEMA: v3-optional-addon-signatures
+  ENGINE_SCHEMA: ${{ contains(github.event.head_commit.message, '[timbre-fast]') && 'v2' || 'v3-optional-addon-signatures' }}
 jobs:
   framework-and-firefox:
     runs-on: macos-26
@@ -160,6 +162,7 @@ jobs:
           set -o pipefail
           bash ./tools/development/build-gecko.sh --use-sccache --auto-clobber 2>&1 | tee "$RUNNER_TEMP/gecko-build.log"
       - name: Verify Gecko permits the signature setting
+        if: env.ENGINE_SCHEMA == 'v3-optional-addon-signatures'
         run: |
           python3 - <<'PY'
           from pathlib import Path
