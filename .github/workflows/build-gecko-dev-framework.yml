@@ -149,7 +149,7 @@ jobs:
           LD: ld64.lld
         run: |
           set -o pipefail
-          ./tools/development/build-gecko.sh --use-sccache --auto-clobber 2>&1 | tee "$RUNNER_TEMP/gecko-build.log"
+          bash ./tools/development/build-gecko.sh --use-sccache --auto-clobber 2>&1 | tee "$RUNNER_TEMP/gecko-build.log"
       - name: Verify Gecko permits the signature setting
         if: steps.compile-gecko.outcome == 'success'
         run: |
