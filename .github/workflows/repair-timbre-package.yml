@@ -5,6 +5,7 @@ on:
     paths:
       - .github/workflows/repair-timbre-package.yml
       - scripts/repair_timbre_package.py
+      - scripts/patch_timbre_builtin.py
   workflow_dispatch:
 permissions:
   contents: write
@@ -19,7 +20,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Stop superseded engine builds until the repair publishes
         run: |
-          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/build-gecko-dev-framework.yml/runs?per_page=30" --jq '.workflow_runs[] | select(.status == "in_progress" or .status == "queued" or .status == "pending") | .id' > "$RUNNER_TEMP/stop-runs.txt"
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/build-gecko-dev-framework.yml/runs?per_page=30" --jq '.workflow_runs[] | select(.status == "queued" or .status == "pending") | .id' > "$RUNNER_TEMP/stop-runs.txt"
           while read -r run; do
             gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$run/cancel" || true
           done < "$RUNNER_TEMP/stop-runs.txt"
@@ -31,14 +32,14 @@ jobs:
           path: original
       - name: Repair the bundled URI and mapping, sign and verify package
         run: |
-          python3 scripts/repair_timbre_package.py original/Firefox-Gecko-Native-159.0-build-48.ipa "$RUNNER_TEMP/ipa/Firefox-Gecko-Native-159.0-build-50.ipa" --build 50
+          python3 scripts/repair_timbre_package.py original/Firefox-Gecko-Native-159.0-build-48.ipa "$RUNNER_TEMP/ipa/Firefox-Gecko-Native-159.0-build-52.ipa" --build 52
       - uses: actions/upload-artifact@v4
         with:
-          name: Firefox-Gecko-Native-159.0-build-50
-          path: ${{ runner.temp }}/ipa/Firefox-Gecko-Native-159.0-build-50.ipa
+          name: Firefox-Gecko-Native-159.0-build-52
+          path: ${{ runner.temp }}/ipa/Firefox-Gecko-Native-159.0-build-52.ipa
           compression-level: 0
           retention-days: 14
       - name: Publish repair and update FlareStore
-        run: bash scripts/publish_native_gecko_release.sh "$RUNNER_TEMP/ipa/Firefox-Gecko-Native-159.0-build-50.ipa" 50 "$GITHUB_SHA"
+        run: bash scripts/publish_native_gecko_release.sh "$RUNNER_TEMP/ipa/Firefox-Gecko-Native-159.0-build-52.ipa" 52 "$GITHUB_SHA"
       - name: Restart optional-signing engine with the corrected Timbre source
         run: gh workflow run build-gecko-dev-framework.yml --ref firefox-native-gecko -f force_engine_rebuild=true

@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import tempfile
 import zipfile
+from patch_timbre_builtin import patch
 from pathlib import Path
 
 OLD = b"resource://timbre-builtin/"
@@ -48,6 +49,7 @@ def repair(source, output, build):
         binary.chmod(0o755)
         subprocess.run(["codesign", "--force", "--sign", "-", "--timestamp=none", str(binary)], check=True)
         gecko = app / "Frameworks/GeckoView.framework"
+        patch(gecko / "Frameworks")
         manifest = gecko / "Frameworks/chrome.manifest"
         data = manifest.read_bytes()
         assert data.count(OLD_MAP) == 1

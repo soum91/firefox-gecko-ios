@@ -26,6 +26,7 @@ import shutil
 import subprocess
 import tempfile
 import zipfile
+from patch_timbre_builtin import patch
 from pathlib import Path
 
 MACHO_MAGICS = {bytes.fromhex("cffaedfe"), bytes.fromhex("cafebabe")}
@@ -203,6 +204,7 @@ def package(app_src: Path, helper_src: Path, framework_src: Path, dist_bin: Path
             # stable name relative to this exact chrome.manifest directory.
             with (gecko_frameworks / "chrome.manifest").open("a", encoding="utf-8") as chrome:
                 chrome.write("resource android file:extensions/\n")
+            patch(gecko_frameworks)
             print(f"bundled Timbre from {timbre}")
 
         plugins = app / "PlugIns"
