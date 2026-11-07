@@ -172,15 +172,45 @@ final class GeckoAddonManager: NSObject {
         return tabAction.merged(with: defaultAction)
     }
 
+    /// Some Gecko iOS builds list Timbre as installed before its MV3 toolbar
+    /// action has been reported. Its bundled popup is still available through
+    /// the extension's own origin, so do not hide the EQ behind that event.
+    private func timbrePopupURL(for addon: Addon) -> String? {
+        guard addon.id == Self.timbreID,
+              let base = URLComponents(string: addon.metaData.baseURL),
+              base.scheme?.lowercased() == "moz-extension",
+              let host = base.host, !host.isEmpty else { return nil }
+        var popup = base
+        popup.path = "/popup/popup.html"
+        popup.query = nil
+        popup.fragment = nil
+        return popup.url?.absoluteString
+    }
+
     func click(_ addon: Addon) {
-        guard let action = action(for: addon) else { return }
+        guard addon.metaData.enabled else { return }
+        let fallback = timbrePopupURL(for: addon)
+        guard let action = action(for: addon) else {
+            if let fallback {
+                presentPopup(url: fallback)
+            } else if addon.id == Self.timbreID {
+                Self.alert(title: "Timbre EQ", message: "Gecko has not exposed Timbre's popup origin. Try disabling and re-enabling Timbre in Settings > Add-ons.")
+            }
+            return
+        }
         Task { @MainActor in
             do {
                 if let url = try await AddonRuntime.shared.clickAction(kind: action.kind, addon: addon), !url.isEmpty {
                     self.presentPopup(url: url)
+                } else if let fallback {
+                    self.presentPopup(url: fallback)
                 }
             } catch {
-                Self.alert(title: addon.metaData.name, message: "\(error)")
+                if let fallback {
+                    self.presentPopup(url: fallback)
+                } else {
+                    Self.alert(title: addon.metaData.name, message: "\(error)")
+                }
             }
         }
     }
@@ -227,8 +257,9 @@ final class GeckoAddonManager: NSObject {
     /// Firefox menu > Add-ons: each add-on's toolbar button, then Manage.
     func presentMenu() {
         start()
+        GeckoTimbreButton.shared.update()
         let sheet = UIAlertController(title: "Add-ons", message: nil, preferredStyle: .actionSheet)
-        for addon in addons where action(for: addon) != nil {
+        for addon in addons where addon.metaData.enabled && (action(for: addon) != nil || addon.id == Self.timbreID) {
             let title = action(for: addon)?.title ?? addon.metaData.name ?? addon.id
             let item = UIAlertAction(title: title, style: .default) { [weak self] _ in self?.click(addon) }
             item.setValue(GeckoAddonIcon.image(for: addon), forKey: "image")
@@ -705,8 +736,9 @@ final class GeckoAddonsViewController: UITableViewController {
         let manager = GeckoAddonManager.shared
         let sheet = UIAlertController(title: addon.metaData.name ?? addon.id,
                                       message: addon.metaData.description, preferredStyle: .actionSheet)
-        if let action = manager.action(for: addon) {
-            sheet.addAction(UIAlertAction(title: action.title ?? "Open", style: .default) { _ in
+        if addon.metaData.enabled && (manager.action(for: addon) != nil || addon.id == GeckoAddonManager.timbreID) {
+            let title = manager.action(for: addon)?.title ?? "Open"
+            sheet.addAction(UIAlertAction(title: title, style: .default) { _ in
                 manager.click(addon)
             })
         }
@@ -841,11 +873,7 @@ final class GeckoTimbreButton: NSObject {
     @objc private func tapped() {
         let manager = GeckoAddonManager.shared
         guard let timbre = manager.timbre else { return }
-        if manager.action(for: timbre) != nil {
-            manager.click(timbre)
-        } else {
-            GeckoAddonManager.alert(title: "Timbre EQ", message: "Timbre is still starting. Try again in a moment.")
-        }
+        manager.click(timbre)
     }
 
     @objc private func dragged(_ pan: UIPanGestureRecognizer) {

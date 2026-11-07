@@ -110,7 +110,13 @@ jobs:
           mv "$staging/dist" "$obj/dist"
           echo "ready=true" >> "$GITHUB_OUTPUT"
           echo "Skipping Gecko compile: reused ${{ steps.engine-key.outputs.key }}" >> "$GITHUB_STEP_SUMMARY"
-      # A cache miss compiles Gecko once with configurable extension signing.
+      - name: Do not compile Gecko for a normal UI update
+        if: steps.engine-reuse.outputs.ready != 'true' && github.event.inputs.force_engine_rebuild != 'true'
+        run: |
+          echo 'The saved Gecko engine is unavailable. Refusing a multi-hour engine compile on a UI update.' >&2
+          echo 'An explicit force_engine_rebuild workflow dispatch is required to compile Gecko.' >&2
+          exit 1
+      # A cache miss never compiles Gecko automatically on normal UI pushes.
       - name: Install Gecko build dependencies
         if: steps.engine-reuse.outputs.ready != 'true'
         run: |

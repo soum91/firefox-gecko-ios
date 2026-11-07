@@ -25,6 +25,7 @@ Mozilla's Firefox 159 app (its own UI, tab tray, menus and settings) with web pa
 - Menu > Add-ons opens each add-on's toolbar popup (for example uBlock Origin's panel)
 - FetchDock Companion is built in: it lists direct file links on a page and sends them to FetchDock
 - Timbre EQ is built in and loads the same way FetchDock Companion does (Gecko only allowed a fixed list of built-in add-on folders, and Timbre was not on it)
+- Timbre's Add-ons menu entry and floating button can open its bundled EQ popup even when Gecko has not reported the extension's toolbar action yet
 - Floating Timbre button over web pages opens the EQ panel; drag it to either side. Turn it off in Settings > Add-ons > Timbre EQ
 - Install add-on from file: Settings > Add-ons installs any .xpi from Files
 - Require signed add-ons switch now works: turn it off and restart to install unsigned .xpi files (Gecko previously hard-required signatures regardless of the switch)
