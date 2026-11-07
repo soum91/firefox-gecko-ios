@@ -69,14 +69,14 @@ jobs:
           echo "Gecko engine content key: $content" >> "$GITHUB_STEP_SUMMARY"
       - name: Restore cached Gecko engine
         id: engine-cache
-        if: github.event.inputs.force_engine_rebuild != 'true'
+        if: github.event.inputs.force_engine_rebuild != 'true' && !contains(github.event.head_commit.message, '[optional-engine]')
         uses: actions/cache/restore@v4
         with:
           path: ${{ runner.temp }}/gecko-engine/gecko-engine-dist.tar.gz
           key: ${{ steps.engine-key.outputs.key }}
       - name: Reuse Gecko engine from an earlier run
         id: engine-seed
-        if: github.event.inputs.force_engine_rebuild != 'true' && steps.engine-cache.outputs.cache-hit != 'true'
+        if: github.event.inputs.force_engine_rebuild != 'true' && !contains(github.event.head_commit.message, '[optional-engine]') && steps.engine-cache.outputs.cache-hit != 'true'
         timeout-minutes: 170
         env:
           GH_TOKEN: ${{ github.token }}
