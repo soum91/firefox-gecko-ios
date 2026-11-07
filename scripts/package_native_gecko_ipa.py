@@ -198,6 +198,11 @@ def package(app_src: Path, helper_src: Path, framework_src: Path, dist_bin: Path
                 raise ValueError("Timbre built-in add-on ID mismatch")
             if not (target / "engine.js").is_file():
                 raise FileNotFoundError("Timbre audio engine is missing")
+            # The runtime lives inside GeckoView.framework/Frameworks, while
+            # resource://app/ is mapped by Gecko independently. Register a
+            # stable name relative to this exact chrome.manifest directory.
+            with (gecko_frameworks / "chrome.manifest").open("a", encoding="utf-8") as chrome:
+                chrome.write("resource timbre-builtin file:extensions/timbre/\n")
             print(f"bundled Timbre from {timbre}")
 
         plugins = app / "PlugIns"
@@ -255,6 +260,8 @@ def package(app_src: Path, helper_src: Path, framework_src: Path, dist_bin: Path
                            if timbre is not None else [])):
             if prefix + required not in names:
                 raise ValueError(f"IPA is missing {required}")
+        if timbre is not None and b"resource timbre-builtin file:extensions/timbre/" not in archive.read(prefix + "Frameworks/GeckoView.framework/Frameworks/chrome.manifest"):
+            raise ValueError("IPA is missing Timbre's Gecko resource mapping")
         if prefix + "Frameworks/XUL" in names:
             raise ValueError("IPA still contains the unrenamed XUL")
         # Developer Gecko builds ship loose chrome files rather than omni.ja.
