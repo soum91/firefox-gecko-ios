@@ -55,6 +55,16 @@ final class GeckoAddonManager: NSObject {
     static let shared = GeckoAddonManager()
     static let companionID = "fetchdock@soum91"
     static let timbreID = "timbre@soum91"
+    private static let signatureKey = "FirefoxGeckoRequireAddonSignatures"
+
+    static var requireAddonSignatures: Bool {
+        UserDefaults.standard.object(forKey: signatureKey) as? Bool ?? true
+    }
+
+    static func setRequireAddonSignatures(_ required: Bool) {
+        UserDefaults.standard.set(required, forKey: signatureKey)
+        GeckoRuntime.setDefaultPrefs(["xpinstall.signatures.required": required])
+    }
     static let galleryURL = URL(string: "https://addons.mozilla.org/android/")!
 
     private var started = false
@@ -69,6 +79,7 @@ final class GeckoAddonManager: NSObject {
         guard !started else { return }
         started = true
         AddonRuntime.shared.delegate = self
+        GeckoRuntime.setDefaultPrefs(["xpinstall.signatures.required": Self.requireAddonSignatures])
         Task { @MainActor in
             _ = try? await AddonRuntime.shared.ensureBuiltIn(
                 location: "resource://app/extensions/fetchdock/", id: Self.companionID)
@@ -497,33 +508,46 @@ final class GeckoAddonsViewController: UITableViewController {
         tableView.reloadData()
     }
 
-    override func numberOfSections(in tableView: UITableView) -> Int { 2 }
+    override func numberOfSections(in tableView: UITableView) -> Int { 3 }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         section == 0 ? max(addons.count, 1) : 1
     }
 
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        section == 0 ? "Installed" : nil
+        section == 0 ? "Installed" : section == 2 ? "Extension verification" : nil
     }
 
     override func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
-        section == 1 ? "Search Mozilla Add-ons and install signed Firefox desktop extensions. Gecko will show each extension's requested permissions." : nil
+        if section == 1 { return "Search Mozilla Add-ons and install Firefox desktop extensions in this app." }
+        if section == 2 { return "Restart after changing this setting. With checks off, install only add-ons you trust. Turning checks on may disable unsigned add-ons." }
+        return nil
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "addon", for: indexPath)
         var content = UIListContentConfiguration.subtitleCell()
         cell.accessoryType = .none
-        if indexPath.section == 1 {
+        if indexPath.section == 2 {
+            content = UIListContentConfiguration.cell()
+            content.text = "Require signed add-ons"
+            let signatureSwitch = UISwitch()
+            signatureSwitch.isOn = GeckoAddonManager.requireAddonSignatures
+            signatureSwitch.addTarget(self, action: #selector(signatureRequirementChanged(_:)), for: .valueChanged)
+            cell.accessoryView = signatureSwitch
+            cell.selectionStyle = .none
+        } else if indexPath.section == 1 {
+            cell.accessoryView = nil
             content = UIListContentConfiguration.cell()
             content.text = "Browse compatible add-ons"
             content.image = UIImage(systemName: "magnifyingglass")
             content.textProperties.color = tableView.tintColor
         } else if addons.isEmpty {
+            cell.accessoryView = nil
             content.text = "No add-ons installed"
             content.textProperties.color = .secondaryLabel
         } else {
+            cell.accessoryView = nil
             let addon = addons[indexPath.row]
             content.text = addon.metaData.name ?? addon.id
             var detail = [addon.metaData.version]
@@ -541,12 +565,22 @@ final class GeckoAddonsViewController: UITableViewController {
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
+        if indexPath.section == 2 { return }
         if indexPath.section == 1 {
             navigationController?.pushViewController(GeckoAddonCatalogViewController(), animated: true)
             return
         }
         guard addons.indices.contains(indexPath.row) else { return }
         showActions(for: addons[indexPath.row], from: tableView.cellForRow(at: indexPath))
+    }
+
+    @objc private func signatureRequirementChanged(_ sender: UISwitch) {
+        GeckoAddonManager.setRequireAddonSignatures(sender.isOn)
+        let alert = UIAlertController(title: "Restart Firefox",
+            message: "Close and reopen the app before installing an add-on. Turning checks back on may disable unsigned add-ons.",
+            preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
     }
 
     private func showActions(for addon: Addon, from cell: UIView?) {
