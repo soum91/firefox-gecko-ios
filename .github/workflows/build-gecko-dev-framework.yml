@@ -29,12 +29,12 @@ concurrency:
   cancel-in-progress: false
 env:
   # 55eecc5: the Reynard fork's ff40037/db5d418 break Gecko's configure.
-  # Optional signing comes from the packaging-time AppConstants patch.
-  REYNARD_REF: 55eecc5b63114b0072bf14bd4c55acec01e3a40a
+  # Optional signing is compiled into this explicit engine build via the pinned Reynard branch.
+  REYNARD_REF: db5d418862893398eff76d1b38391f1c928eb7f7
   XCODE_VERSION: '26.5'
   # Bump only when the Gecko build flags or the archive layout change.
   # v2: links in dist/ are resolved, so the archive is self-contained.
-  ENGINE_SCHEMA: v2
+  ENGINE_SCHEMA: v3-optional-addon-signatures
 jobs:
   framework-and-firefox:
     runs-on: macos-26
