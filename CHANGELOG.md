@@ -1,5 +1,13 @@
 # Changelog
 
+## [native-gecko-159.0-build-67] - 2026-11-07
+
+## Verified changes since native-gecko-159.0-build-66
+
+- Index Firefox Gecko (Native UI) build 66 in FlareStore ([`42bc994b`](https://github.com/soum91/firefox-gecko-ios/commit/42bc994bdc5bdc4976a6284f431955104fd04681); `source.json`)
+
+[Inspect exact code changes](https://github.com/soum91/firefox-gecko-ios/compare/native-gecko-159.0-build-66...native-gecko-159.0-build-67)
+
 ## [native-gecko-159.0-build-66] - 2026-11-07
 
 ## Verified changes since native-gecko-159.0-build-65
