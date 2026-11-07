@@ -70,6 +70,8 @@ final class GeckoAddonManager: NSObject {
     static let galleryURL = URL(string: "https://addons.mozilla.org/android/")!
 
     private var started = false
+    private var installingBundled = false
+    private(set) var builtInErrors: [String: String] = [:]
     private var browserActions: [ObjectIdentifier: [String: AddonAction]] = [:]
     private var pageActions: [ObjectIdentifier: [String: AddonAction]] = [:]
 
@@ -82,19 +84,59 @@ final class GeckoAddonManager: NSObject {
         started = true
         AddonRuntime.shared.delegate = self
         GeckoRuntime.setDefaultPrefs(["xpinstall.signatures.required": Self.requireAddonSignatures])
-        Task { @MainActor in
-            _ = try? await AddonRuntime.shared.ensureBuiltIn(
-                location: "resource://app/extensions/fetchdock/", id: Self.companionID)
-            _ = try? await AddonRuntime.shared.ensureBuiltIn(
-                location: "resource://app/extensions/timbre/", id: Self.timbreID)
-            _ = try? await AddonRuntime.shared.list()
-            self.changed()
-        }
+        Task { @MainActor in await self.registerBundledAddons() }
     }
 
     func refresh() async {
-        _ = try? await AddonRuntime.shared.list()
-        changed()
+        await registerBundledAddons()
+    }
+
+    /// Gecko's extension listener may start after the first tab is created.
+    /// Keep the failures visible and retry when Add-ons is opened.
+    private func registerBundledAddons() async {
+        guard !installingBundled else { return }
+        installingBundled = true
+        defer {
+            installingBundled = false
+            changed()
+        }
+        let packages = [
+            (Self.companionID, "resource://app/extensions/fetchdock/"),
+            (Self.timbreID, "resource://app/extensions/timbre/"),
+        ]
+        for attempt in 0..<4 {
+            for (id, location) in packages {
+                guard !AddonRuntime.shared.installedAddons.contains(where: { $0.id == id }) else {
+                    builtInErrors[id] = nil
+                    continue
+                }
+                do {
+                    _ = try await AddonRuntime.shared.ensureBuiltIn(location: location, id: id)
+                    builtInErrors[id] = nil
+                } catch {
+                    builtInErrors[id] = String(describing: error)
+                }
+            }
+            do {
+                _ = try await AddonRuntime.shared.list()
+            } catch {
+                for (id, _) in packages where !AddonRuntime.shared.installedAddons.contains(where: { $0.id == id }) {
+                    builtInErrors[id] = "Extension list failed: \(error)"
+                }
+            }
+            for (id, _) in packages {
+                if AddonRuntime.shared.installedAddons.contains(where: { $0.id == id }) {
+                    builtInErrors[id] = nil
+                } else if builtInErrors[id] == nil {
+                    builtInErrors[id] = "Gecko did not return the bundled add-on"
+                }
+            }
+            changed()
+            guard !packages.allSatisfy({ package in
+                AddonRuntime.shared.installedAddons.contains(where: { $0.id == package.0 })
+            }), attempt < 3 else { break }
+            try? await Task.sleep(nanoseconds: UInt64(attempt + 1) * 500_000_000)
+        }
     }
 
     private func changed() {
@@ -484,6 +526,7 @@ final class GeckoAddonsSetting: Setting {
 /// and a link to addons.mozilla.org to find more.
 final class GeckoAddonsViewController: UITableViewController {
     private var addons: [Addon] = []
+    private var failedBuiltIns: [(id: String, name: String, error: String)] = []
 
     init() {
         super.init(style: .insetGrouped)
@@ -507,13 +550,20 @@ final class GeckoAddonsViewController: UITableViewController {
 
     private func reload() {
         addons = GeckoAddonManager.shared.addons
+        let errors = GeckoAddonManager.shared.builtInErrors
+        failedBuiltIns = [
+            (GeckoAddonManager.timbreID, "Timbre EQ"),
+            (GeckoAddonManager.companionID, "FetchDock Companion"),
+        ].compactMap { package in
+            errors[package.0].map { (id: package.0, name: package.1, error: $0) }
+        }
         tableView.reloadData()
     }
 
     override func numberOfSections(in tableView: UITableView) -> Int { 3 }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        section == 0 ? max(addons.count, 1) : 1
+        section == 0 ? max(addons.count + failedBuiltIns.count, 1) : 1
     }
 
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
@@ -544,6 +594,14 @@ final class GeckoAddonsViewController: UITableViewController {
             content.text = "Browse compatible add-ons"
             content.image = UIImage(systemName: "magnifyingglass")
             content.textProperties.color = tableView.tintColor
+        } else if indexPath.row >= addons.count, !failedBuiltIns.isEmpty {
+            cell.accessoryView = nil
+            let failure = failedBuiltIns[indexPath.row - addons.count]
+            content.text = failure.name + " failed to load"
+            content.secondaryText = failure.error
+            content.image = UIImage(systemName: "exclamationmark.triangle")
+            content.textProperties.color = .systemOrange
+            cell.accessoryType = .disclosureIndicator
         } else if addons.isEmpty {
             cell.accessoryView = nil
             content.text = "No add-ons installed"
@@ -570,6 +628,17 @@ final class GeckoAddonsViewController: UITableViewController {
         if indexPath.section == 2 { return }
         if indexPath.section == 1 {
             navigationController?.pushViewController(GeckoAddonCatalogViewController(), animated: true)
+            return
+        }
+        if indexPath.row >= addons.count, failedBuiltIns.indices.contains(indexPath.row - addons.count) {
+            let failure = failedBuiltIns[indexPath.row - addons.count]
+            let alert = UIAlertController(title: failure.name + " failed to load",
+                                          message: failure.error, preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "Retry", style: .default) { _ in
+                Task { await GeckoAddonManager.shared.refresh() }
+            })
+            alert.addAction(UIAlertAction(title: "OK", style: .cancel))
+            present(alert, animated: true)
             return
         }
         guard addons.indices.contains(indexPath.row) else { return }
