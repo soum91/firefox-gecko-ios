@@ -202,7 +202,7 @@ def package(app_src: Path, helper_src: Path, framework_src: Path, dist_bin: Path
             # resource://app/ is mapped by Gecko independently. Register a
             # stable name relative to this exact chrome.manifest directory.
             with (gecko_frameworks / "chrome.manifest").open("a", encoding="utf-8") as chrome:
-                chrome.write("resource timbre-builtin file:extensions/timbre/\n")
+                chrome.write("resource android file:extensions/\n")
             print(f"bundled Timbre from {timbre}")
 
         plugins = app / "PlugIns"
@@ -260,7 +260,7 @@ def package(app_src: Path, helper_src: Path, framework_src: Path, dist_bin: Path
                            if timbre is not None else [])):
             if prefix + required not in names:
                 raise ValueError(f"IPA is missing {required}")
-        if timbre is not None and b"resource timbre-builtin file:extensions/timbre/" not in archive.read(prefix + "Frameworks/GeckoView.framework/Frameworks/chrome.manifest"):
+        if timbre is not None and b"resource android file:extensions/" not in archive.read(prefix + "Frameworks/GeckoView.framework/Frameworks/chrome.manifest"):
             raise ValueError("IPA is missing Timbre's Gecko resource mapping")
         if prefix + "Frameworks/XUL" in names:
             raise ValueError("IPA still contains the unrenamed XUL")
