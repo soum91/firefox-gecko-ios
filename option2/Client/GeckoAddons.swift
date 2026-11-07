@@ -72,6 +72,7 @@ final class GeckoAddonManager: NSObject {
 
     private var started = false
     private var installingBundled = false
+    private var timbreRecoveryAttempted = false
     private(set) var builtInErrors: [String: String] = [:]
     private var browserActions: [ObjectIdentifier: [String: AddonAction]] = [:]
     private var pageActions: [ObjectIdentifier: [String: AddonAction]] = [:]
@@ -172,9 +173,8 @@ final class GeckoAddonManager: NSObject {
         return tabAction.merged(with: defaultAction)
     }
 
-    /// Some Gecko iOS builds list Timbre as installed before its MV3 toolbar
-    /// action has been reported. Its bundled popup is still available through
-    /// the extension's own origin, so do not hide the EQ behind that event.
+    /// The extension origin is only available after Gecko has activated the
+    /// WebExtensionPolicy. The cached installed entry can predate activation.
     private func timbrePopupURL(for addon: Addon) -> String? {
         guard addon.id == Self.timbreID,
               let base = URLComponents(string: addon.metaData.baseURL),
@@ -189,30 +189,91 @@ final class GeckoAddonManager: NSObject {
 
     func click(_ addon: Addon) {
         guard addon.metaData.enabled else { return }
-        let fallback = timbrePopupURL(for: addon)
-        guard let action = action(for: addon) else {
-            if let fallback {
-                presentPopup(url: fallback)
-            } else if addon.id == Self.timbreID {
-                Self.alert(title: "Timbre EQ", message: "Gecko has not exposed Timbre's popup origin. Try disabling and re-enabling Timbre in Settings > Add-ons.")
-            }
-            return
-        }
         Task { @MainActor in
+            var lastError: String?
+            // A missing AddonAction notification must not suppress Gecko's
+            // own BrowserAction:Click handler: it can supply the popup URL.
             do {
-                if let url = try await AddonRuntime.shared.clickAction(kind: action.kind, addon: addon), !url.isEmpty {
-                    self.presentPopup(url: url)
-                } else if let fallback {
-                    self.presentPopup(url: fallback)
-                }
+                if try await self.openActionPopup(for: addon) { return }
             } catch {
-                if let fallback {
-                    self.presentPopup(url: fallback)
-                } else {
-                    Self.alert(title: addon.metaData.name, message: "\(error)")
+                lastError = String(describing: error)
+            }
+
+            guard addon.id == Self.timbreID else {
+                if let lastError { Self.alert(title: addon.metaData.name, message: lastError) }
+                return
+            }
+
+            // Re-query Gecko instead of trusting the install-time metadata.
+            var current = addon
+            do {
+                current = try await self.refreshTimbre() ?? addon
+            } catch {
+                lastError = String(describing: error)
+            }
+            if let url = self.timbrePopupURL(for: current) {
+                self.presentPopup(url: url)
+                return
+            }
+
+            // A built-in add-on can remain marked installed and enabled while
+            // its WebExtensionPolicy was not registered. Restart it once; do
+            // not uninstall it, which could erase the user's saved EQ state.
+            if !self.timbreRecoveryAttempted {
+                self.timbreRecoveryAttempted = true
+                do {
+                    current = try await self.reactivateTimbre(current)
+                    if try await self.openActionPopup(for: current) { return }
+                    if let url = self.timbrePopupURL(for: current) {
+                        self.presentPopup(url: url)
+                        return
+                    }
+                } catch {
+                    lastError = String(describing: error)
+                }
+            }
+
+            let flags = current.metaData.disabledFlags.joined(separator: ", ")
+            let diagnostics = "Active: \(current.metaData.enabled); disabled flags: \(flags.isEmpty ? "none" : flags); origin: \(current.metaData.baseURL.isEmpty ? "missing" : "present")"
+            Self.alert(title: "Timbre EQ could not start", message: "Gecko did not register Timbre's popup even after refreshing its state and attempting recovery. \(diagnostics)\(lastError.map { "\nError: \($0)" } ?? "")")
+        }
+    }
+
+    private func openActionPopup(for addon: Addon) async throws -> Bool {
+        let kind = action(for: addon)?.kind ?? .browser
+        guard let url = try await AddonRuntime.shared.clickAction(kind: kind, addon: addon),
+              !url.isEmpty else { return false }
+        presentPopup(url: url)
+        return true
+    }
+
+    private func refreshTimbre() async throws -> Addon? {
+        let listed = try await AddonRuntime.shared.list()
+        return listed.first { $0.id == Self.timbreID }
+    }
+
+    private func reactivateTimbre(_ addon: Addon) async throws -> Addon {
+        _ = try await AddonRuntime.shared.disable(addon)
+        do {
+            _ = try await AddonRuntime.shared.enable(addon)
+        } catch {
+            // Leave the user's enabled add-on enabled even if a retry fails.
+            _ = try? await AddonRuntime.shared.enable(addon)
+            throw error
+        }
+        var current = addon
+        // Gecko starts the policy asynchronously after an enable event.
+        // Wait briefly for an actual origin/action before judging recovery.
+        for _ in 0..<8 {
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            if let refreshed = try? await refreshTimbre() {
+                current = refreshed
+                if !current.metaData.baseURL.isEmpty || action(for: current) != nil {
+                    break
                 }
             }
         }
+        return current
     }
 
     func openOptions(_ addon: Addon) {
