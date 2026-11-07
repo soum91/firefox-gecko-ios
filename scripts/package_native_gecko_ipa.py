@@ -79,7 +79,7 @@ def set_plist(path: Path, **values: object) -> dict:
 def package(app_src: Path, helper_src: Path, framework_src: Path, dist_bin: Path,
             default_theme: Path, output: Path, bundle_id: str, version: str, build: str,
             missing_report: Path | None = None, companion: Path | None = None,
-            extensions: list[Path] | None = None) -> None:
+            extensions: list[Path] | None = None, timbre: Path | None = None) -> None:
     with tempfile.TemporaryDirectory(prefix="firefox-gecko-ipa-") as temp:
         payload = Path(temp) / "Payload"
         app = payload / "Firefox.app"
@@ -186,6 +186,20 @@ def package(app_src: Path, helper_src: Path, framework_src: Path, dist_bin: Path
                 raise FileNotFoundError(f"FetchDock Companion manifest missing in {companion}")
             print(f"bundled FetchDock Companion from {companion}")
 
+        if timbre is not None:
+            target = gecko_frameworks / "extensions" / "timbre"
+            shutil.copytree(timbre, target, dirs_exist_ok=True)
+            manifest = target / "manifest.json"
+            if not manifest.is_file():
+                raise FileNotFoundError(f"Timbre built-in manifest missing in {timbre}")
+            import json
+            data = json.loads(manifest.read_text(encoding="utf-8"))
+            if data.get("browser_specific_settings", {}).get("gecko", {}).get("id") != "timbre@soum91":
+                raise ValueError("Timbre built-in add-on ID mismatch")
+            if not (target / "engine.js").is_file():
+                raise FileNotFoundError("Timbre audio engine is missing")
+            print(f"bundled Timbre from {timbre}")
+
         plugins = app / "PlugIns"
         plugins.mkdir(exist_ok=True)
         helper = plugins / "Reynard Helper.appex"
@@ -236,7 +250,9 @@ def package(app_src: Path, helper_src: Path, framework_src: Path, dist_bin: Path
                          "Frameworks/GeckoView.framework/GeckoView",
                          "PlugIns/Reynard Helper.appex/Info.plist",
                          *(["Frameworks/GeckoView.framework/Frameworks/extensions/fetchdock/manifest.json"]
-                           if companion is not None else [])):
+                           if companion is not None else []),
+                         *(["Frameworks/GeckoView.framework/Frameworks/extensions/timbre/manifest.json","Frameworks/GeckoView.framework/Frameworks/extensions/timbre/engine.js"]
+                           if timbre is not None else [])):
             if prefix + required not in names:
                 raise ValueError(f"IPA is missing {required}")
         if prefix + "Frameworks/XUL" in names:
@@ -267,6 +283,8 @@ if __name__ == "__main__":
     parser.add_argument("--build", required=True)
     parser.add_argument("--companion", type=Path,
                         help="Reynard's addons/fetchdock folder, bundled as a built-in add-on")
+    parser.add_argument("--timbre", type=Path,
+                        help="unpacked Timbre XPI to register as a separate built-in Gecko add-on")
     parser.add_argument("--extension", type=Path, action="append", default=[],
                         help="extra .appex to embed under PlugIns (repeatable)")
     parser.add_argument("--missing-report", type=Path,
@@ -275,7 +293,7 @@ if __name__ == "__main__":
     try:
         package(args.app, args.helper, args.framework, args.dist_bin, args.default_theme,
                 args.output, args.bundle_id, args.version, args.build, args.missing_report,
-                args.companion, args.extension)
+                args.companion, args.extension, args.timbre)
     except Exception as failure:  # one greppable line for the CI error summary
         import sys
         import traceback

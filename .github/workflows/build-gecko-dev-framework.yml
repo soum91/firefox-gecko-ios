@@ -107,6 +107,12 @@ jobs:
           mv "$staging/dist" "$obj/dist"
           echo "ready=true" >> "$GITHUB_OUTPUT"
           echo "Skipping Gecko compile: reused ${{ steps.engine-key.outputs.key }}" >> "$GITHUB_STEP_SUMMARY"
+      - name: Require cached Gecko engine without recompilation
+        run: |
+          test "${{ steps.engine-reuse.outputs.ready }}" = "true" || {
+            echo "::error::Compiled Gecko engine cache unavailable. Refusing to compile Gecko for this repackaging build."
+            exit 1
+          }
       - name: Install Gecko build dependencies
         if: steps.engine-reuse.outputs.ready != 'true'
         run: |
@@ -312,6 +318,19 @@ jobs:
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             OTHER_SWIFT_FLAGS='$(inherited)'" $gecko_flags -F $slice" \
             build 2>&1 | tee "$RUNNER_TEMP/firefox-app-build.log"
+      - name: Checkout Timbre add-on source
+        uses: actions/checkout@v4
+        with:
+          repository: soum91/timbre
+          ref: addon-4
+          path: timbre-source
+          persist-credentials: false
+      - name: Build Timbre add-on resources without signing or Gecko compilation
+        run: |
+          cd timbre-source
+          bash addon/build.sh 1.0.4
+          test -s dist/Timbre-EQ-1.0.4.xpi
+          test -f dist/addon/engine.js
       - name: Package Firefox Gecko IPA
         id: ipa
         run: |
@@ -327,6 +346,7 @@ jobs:
             --dist-bin reynard-source/engine/firefox/obj-aarch64-apple-ios/dist/bin \
             --default-theme reynard-source/engine/firefox/toolkit/mozapps/extensions/default-theme \
             --companion reynard-source/addons/fetchdock \
+            --timbre timbre-source/dist/addon \
             --extension "$RUNNER_TEMP/link-extensions/SafariRedirect.appex" \
             --extension "$RUNNER_TEMP/link-extensions/ShareTo.appex" \
             --output "$out" --version "159.0.${build}" --build "$build" --missing-report "$RUNNER_TEMP/missing-gecko-files.txt" \

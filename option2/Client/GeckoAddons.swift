@@ -54,6 +54,7 @@ final class GeckoAddonPackageDownloads: @unchecked Sendable {
 final class GeckoAddonManager: NSObject {
     static let shared = GeckoAddonManager()
     static let companionID = "fetchdock@soum91"
+    static let timbreID = "timbre@soum91"
     static let galleryURL = URL(string: "https://addons.mozilla.org/android/")!
 
     private var started = false
@@ -61,7 +62,7 @@ final class GeckoAddonManager: NSObject {
     private var pageActions: [ObjectIdentifier: [String: AddonAction]] = [:]
 
     var addons: [Addon] {
-        AddonRuntime.shared.installedAddons.filter { !$0.isBuiltIn || $0.id == Self.companionID }
+        AddonRuntime.shared.installedAddons.filter { !$0.isBuiltIn || $0.id == Self.companionID || $0.id == Self.timbreID }
     }
 
     func start() {
@@ -71,6 +72,8 @@ final class GeckoAddonManager: NSObject {
         Task { @MainActor in
             _ = try? await AddonRuntime.shared.ensureBuiltIn(
                 location: "resource://app/extensions/fetchdock/", id: Self.companionID)
+            _ = try? await AddonRuntime.shared.ensureBuiltIn(
+                location: "resource://app/extensions/timbre/", id: Self.timbreID)
             _ = try? await AddonRuntime.shared.list()
             self.changed()
         }
