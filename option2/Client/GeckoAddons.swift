@@ -4,6 +4,7 @@
 import Common
 import Foundation
 import UIKit
+import UniformTypeIdentifiers
 @preconcurrency import GeckoView
 
 // MARK: - Gecko add-ons (Reynard's WebExtension runtime in Firefox's UI)
@@ -141,6 +142,11 @@ final class GeckoAddonManager: NSObject {
 
     private func changed() {
         NotificationCenter.default.post(name: .geckoAddonsChanged, object: nil)
+        GeckoTimbreButton.shared.update()
+    }
+
+    var timbre: Addon? {
+        AddonRuntime.shared.installedAddons.first { $0.id == Self.timbreID }
     }
 
     // MARK: Actions
@@ -335,7 +341,11 @@ extension GeckoAddonManager: @preconcurrency AddonEmbedderDelegate {
 
     func addonController(_ controller: AddonRuntime, didFailInstall failure: AddonInstallFailure) {
         let name = failure.extensionName ?? failure.extensionID ?? "The add-on"
-        Self.alert(title: "Add-on not installed", message: "\(name) could not be installed (\(failure.code ?? "unknown error")).")
+        var message = "\(name) could not be installed (\(failure.code ?? "unknown error"))."
+        if GeckoAddonManager.requireAddonSignatures {
+            message += "\n\nIf this add-on is unsigned, turn off Require signed add-ons in Settings > Add-ons, restart the app and install it again."
+        }
+        Self.alert(title: "Add-on not installed", message: message)
     }
 
     func addonController(_ controller: AddonRuntime, promptFor prompt: AddonPermissionPrompt) async -> AddonPermissionPromptResponse {
@@ -560,18 +570,24 @@ final class GeckoAddonsViewController: UITableViewController {
         tableView.reloadData()
     }
 
-    override func numberOfSections(in tableView: UITableView) -> Int { 3 }
+    override func numberOfSections(in tableView: UITableView) -> Int { 4 }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        section == 0 ? max(addons.count + failedBuiltIns.count, 1) : 1
+        section == 0 ? max(addons.count + failedBuiltIns.count, 1) : section == 1 ? 2 : 1
     }
 
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        section == 0 ? "Installed" : section == 2 ? "Extension verification" : nil
+        switch section {
+        case 0: return "Installed"
+        case 2: return "Extension verification"
+        case 3: return "Timbre EQ"
+        default: return nil
+        }
     }
 
     override func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
-        if section == 1 { return "Search Mozilla Add-ons and install Firefox desktop extensions in this app." }
+        if section == 1 { return "Search Mozilla Add-ons, or install an .xpi file from Files (unsigned ones need Require signed add-ons turned off)." }
+        if section == 3 { return "A button over web pages that opens the Timbre EQ panel. Drag it to move it." }
         if section == 2 { return "Restart after changing this setting. With checks off, install only add-ons you trust. Turning checks on may disable unsigned add-ons." }
         return nil
     }
@@ -580,7 +596,21 @@ final class GeckoAddonsViewController: UITableViewController {
         let cell = tableView.dequeueReusableCell(withIdentifier: "addon", for: indexPath)
         var content = UIListContentConfiguration.subtitleCell()
         cell.accessoryType = .none
-        if indexPath.section == 2 {
+        if indexPath.section == 3 {
+            content = UIListContentConfiguration.cell()
+            content.text = "Floating Timbre button"
+            let toggle = UISwitch()
+            toggle.isOn = GeckoTimbreButton.isEnabled
+            toggle.addTarget(self, action: #selector(timbreButtonChanged(_:)), for: .valueChanged)
+            cell.accessoryView = toggle
+            cell.selectionStyle = .none
+        } else if indexPath.section == 1, indexPath.row == 1 {
+            cell.accessoryView = nil
+            content = UIListContentConfiguration.cell()
+            content.text = "Install add-on from file"
+            content.image = UIImage(systemName: "doc.badge.plus")
+            content.textProperties.color = tableView.tintColor
+        } else if indexPath.section == 2 {
             content = UIListContentConfiguration.cell()
             content.text = "Require signed add-ons"
             let signatureSwitch = UISwitch()
@@ -625,7 +655,11 @@ final class GeckoAddonsViewController: UITableViewController {
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        if indexPath.section == 2 { return }
+        if indexPath.section == 2 || indexPath.section == 3 { return }
+        if indexPath.section == 1, indexPath.row == 1 {
+            pickPackage()
+            return
+        }
         if indexPath.section == 1 {
             navigationController?.pushViewController(GeckoAddonCatalogViewController(), animated: true)
             return
@@ -643,6 +677,19 @@ final class GeckoAddonsViewController: UITableViewController {
         }
         guard addons.indices.contains(indexPath.row) else { return }
         showActions(for: addons[indexPath.row], from: tableView.cellForRow(at: indexPath))
+    }
+
+    @objc private func timbreButtonChanged(_ sender: UISwitch) {
+        GeckoTimbreButton.isEnabled = sender.isOn
+    }
+
+    private func pickPackage() {
+        // .xpi has no registered type on iOS, so accept any file and check
+        // the extension after picking. asCopy hands us a readable copy.
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.data], asCopy: true)
+        picker.delegate = self
+        picker.allowsMultipleSelection = false
+        present(picker, animated: true)
     }
 
     @objc private func signatureRequirementChanged(_ sender: UISwitch) {
@@ -701,6 +748,135 @@ final class GeckoAddonsViewController: UITableViewController {
     }
 }
 
+extension GeckoAddonsViewController: UIDocumentPickerDelegate {
+    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+        guard let picked = urls.first else { return }
+        let ext = picked.pathExtension.lowercased()
+        guard ext == "xpi" || ext == "zip" else {
+            GeckoAddonManager.alert(title: "Not an add-on", message: "Choose a Firefox add-on package (.xpi).")
+            return
+        }
+        let file = FileManager.default.temporaryDirectory
+            .appendingPathComponent("manual-\(UUID().uuidString).xpi")
+        do {
+            let access = picked.startAccessingSecurityScopedResource()
+            defer { if access { picked.stopAccessingSecurityScopedResource() } }
+            try FileManager.default.copyItem(at: picked, to: file)
+        } catch {
+            GeckoAddonManager.alert(title: "Add-on not installed", message: "Could not read the file: \(error.localizedDescription)")
+            return
+        }
+        GeckoAddonManager.shared.installPackage(at: file.path, succeeded: true)
+    }
+}
+
+/// Floating button over web pages that opens Timbre EQ's panel. Draggable,
+/// snaps to the nearest side, and remembers where it was left.
+@MainActor
+final class GeckoTimbreButton: NSObject {
+    static let shared = GeckoTimbreButton()
+    private static let enabledKey = "FirefoxGeckoTimbreFloatingButton"
+    private static let sideKey = "FirefoxGeckoTimbreButtonRight"
+    private static let heightKey = "FirefoxGeckoTimbreButtonY"
+    private static let size: CGFloat = 52
+
+    static var isEnabled: Bool {
+        get { UserDefaults.standard.object(forKey: enabledKey) as? Bool ?? true }
+        set {
+            UserDefaults.standard.set(newValue, forKey: enabledKey)
+            shared.update()
+        }
+    }
+
+    private var button: UIButton?
+    private var waiting = false
+
+    func update() {
+        let wanted = Self.isEnabled && GeckoAddonManager.shared.timbre?.metaData.enabled == true
+        guard wanted else {
+            button?.removeFromSuperview()
+            button = nil
+            return
+        }
+        guard let host = GeckoAddonManager.browserViewController()?.view else {
+            // Firefox's browser window may not exist yet on a cold launch.
+            guard !waiting else { return }
+            waiting = true
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                self.waiting = false
+                self.update()
+            }
+            return
+        }
+        let button = self.button ?? makeButton()
+        self.button = button
+        if button.superview !== host {
+            button.removeFromSuperview()
+            host.addSubview(button)
+            restorePosition(of: button, in: host)
+        }
+        host.bringSubviewToFront(button)
+    }
+
+    private func makeButton() -> UIButton {
+        var config = UIButton.Configuration.filled()
+        config.image = UIImage(systemName: "slider.vertical.3",
+                               withConfiguration: UIImage.SymbolConfiguration(pointSize: 20, weight: .semibold))
+        config.baseBackgroundColor = UIColor.systemIndigo.withAlphaComponent(0.92)
+        config.baseForegroundColor = .white
+        config.cornerStyle = .capsule
+        let button = UIButton(configuration: config)
+        button.frame = CGRect(x: 0, y: 0, width: Self.size, height: Self.size)
+        button.accessibilityLabel = "Timbre EQ"
+        button.layer.shadowColor = UIColor.black.cgColor
+        button.layer.shadowOpacity = 0.35
+        button.layer.shadowRadius = 6
+        button.layer.shadowOffset = CGSize(width: 0, height: 3)
+        button.addTarget(self, action: #selector(tapped), for: .touchUpInside)
+        button.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(dragged(_:))))
+        return button
+    }
+
+    @objc private func tapped() {
+        let manager = GeckoAddonManager.shared
+        guard let timbre = manager.timbre else { return }
+        if manager.action(for: timbre) != nil {
+            manager.click(timbre)
+        } else {
+            GeckoAddonManager.alert(title: "Timbre EQ", message: "Timbre is still starting. Try again in a moment.")
+        }
+    }
+
+    @objc private func dragged(_ pan: UIPanGestureRecognizer) {
+        guard let button = pan.view, let host = button.superview else { return }
+        let move = pan.translation(in: host)
+        button.center = CGPoint(x: button.center.x + move.x, y: button.center.y + move.y)
+        pan.setTranslation(.zero, in: host)
+        guard pan.state == .ended || pan.state == .cancelled else { return }
+        let right = button.center.x > host.bounds.midX
+        let area = host.bounds.inset(by: host.safeAreaInsets)
+        let fraction = area.height > 0 ? (button.center.y - area.minY) / area.height : 0.7
+        UserDefaults.standard.set(right, forKey: Self.sideKey)
+        UserDefaults.standard.set(Double(min(max(fraction, 0), 1)), forKey: Self.heightKey)
+        UIView.animate(withDuration: 0.25, delay: 0, usingSpringWithDamping: 0.8, initialSpringVelocity: 0) {
+            self.restorePosition(of: button, in: host)
+        }
+    }
+
+    private func restorePosition(of button: UIView, in host: UIView) {
+        let defaults = UserDefaults.standard
+        let right = defaults.object(forKey: Self.sideKey) as? Bool ?? true
+        let fraction = CGFloat(defaults.object(forKey: Self.heightKey) as? Double ?? 0.7)
+        let area = host.bounds.inset(by: host.safeAreaInsets)
+        let half = Self.size / 2 + 12
+        let x = right ? area.maxX - half : area.minX + half
+        let y = min(max(area.minY + area.height * fraction, area.minY + half), area.maxY - half - 60)
+        button.center = CGPoint(x: x, y: y)
+        button.autoresizingMask = right ? [.flexibleLeftMargin, .flexibleTopMargin, .flexibleBottomMargin]
+                                        : [.flexibleRightMargin, .flexibleTopMargin, .flexibleBottomMargin]
+    }
+}
 
 /// Search and install Mozilla-listed Firefox desktop add-ons without relying
 /// on addons.mozilla.org's browser detection, which treats this Gecko iOS shell

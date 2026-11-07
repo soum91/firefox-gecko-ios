@@ -480,7 +480,7 @@ def patch_addons(root: Path) -> None:
     text = path.read_text(encoding="utf-8")
     if MARKER in text:
         raise ValueError(f"{path} already has the overlay")
-    text = add_imports(text, ["import Foundation", "@preconcurrency import GeckoView"], str(path))
+    text = add_imports(text, ["import Foundation", "import UniformTypeIdentifiers", "@preconcurrency import GeckoView"], str(path))
     text = replace_once(
         text,
         "        // Toolbar position cannot be changed on iPad\n",

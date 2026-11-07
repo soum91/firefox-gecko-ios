@@ -25,6 +25,9 @@ Mozilla's Firefox 159 app (its own UI, tab tray, menus and settings) with web pa
 - Menu > Add-ons opens each add-on's toolbar popup (for example uBlock Origin's panel)
 - FetchDock Companion is built in: it lists direct file links on a page and sends them to FetchDock
 - Timbre EQ is built in and loads the same way FetchDock Companion does (Gecko only allowed a fixed list of built-in add-on folders, and Timbre was not on it)
+- Floating Timbre button over web pages opens the EQ panel; drag it to either side. Turn it off in Settings > Add-ons > Timbre EQ
+- Install add-on from file: Settings > Add-ons installs any .xpi from Files
+- Require signed add-ons switch now works: turn it off and restart to install unsigned .xpi files (Gecko previously hard-required signatures regardless of the switch)
 - Safari redirect: with Safari as the default browser, links that open in Safari jump to Firefox Gecko. Turn on "Open in Firefox Gecko" in Settings > Apps > Safari > Extensions and allow it on all websites. Its toolbar popup turns it off, excludes a site, or keeps you in Safari for 10 minutes
 - Share sheet: Firefox Gecko opens a shared link or text in a normal or private tab, or downloads the link with FetchDock
 - This app uses the URL scheme firefoxgecko:// instead of firefox://, so it no longer catches links meant for a real Firefox

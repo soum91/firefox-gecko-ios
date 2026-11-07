@@ -7,6 +7,9 @@ on:
       - .github/scripts/**
       - option2/**
       - scripts/package_native_gecko_ipa.py
+      - scripts/patch_timbre_builtin.py
+      - scripts/patch_gecko_signing.py
+      - scripts/next_native_build.sh
       - scripts/build_link_extensions.sh
       - scripts/publish_native_gecko_release.sh
   workflow_dispatch:
@@ -150,33 +153,6 @@ jobs:
         run: |
           set -o pipefail
           bash ./tools/development/build-gecko.sh --use-sccache --auto-clobber 2>&1 | tee "$RUNNER_TEMP/gecko-build.log"
-      - name: Verify Gecko permits the signature setting
-        if: steps.compile-gecko.outcome == 'success'
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          import zipfile
-
-          root = Path("reynard-source/engine/firefox/obj-aarch64-apple-ios/dist/bin")
-          paths = [root / "omni.ja", root / "modules/AppConstants.sys.mjs"]
-          sources = []
-          for path in paths:
-              if not path.exists():
-                  continue
-              if path.suffix == ".ja":
-                  with zipfile.ZipFile(path) as archive:
-                      for name in archive.namelist():
-                          if name.endswith("AppConstants.sys.mjs"):
-                              sources.append(archive.read(name).decode())
-              else:
-                  sources.append(path.read_text())
-          assert sources, "Could not locate built AppConstants to verify signing mode"
-          assert any(re.search(r"MOZ_REQUIRE_SIGNING\s*:\s*false", value) for value in sources), (
-              "Gecko still enforces signatures at build time"
-          )
-          print("Verified MOZ_REQUIRE_SIGNING: false")
-          PY
       - name: Preserve compiled Gecko engine before framework work
         id: archive-gecko
         if: steps.compile-gecko.outcome == 'success'

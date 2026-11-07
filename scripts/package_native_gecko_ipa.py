@@ -27,6 +27,7 @@ import subprocess
 import tempfile
 import zipfile
 from patch_timbre_builtin import patch
+from patch_gecko_signing import patch as patch_signing
 from pathlib import Path
 
 MACHO_MAGICS = {bytes.fromhex("cffaedfe"), bytes.fromhex("cafebabe")}
@@ -204,6 +205,9 @@ def package(app_src: Path, helper_src: Path, framework_src: Path, dist_bin: Path
             patch(gecko_frameworks)
             print(f"bundled Timbre from {timbre}")
 
+        # Lets Settings > Add-ons > Require signed add-ons actually switch.
+        patch_signing(gecko_frameworks)
+
         plugins = app / "PlugIns"
         plugins.mkdir(exist_ok=True)
         helper = plugins / "Reynard Helper.appex"
@@ -261,6 +265,8 @@ def package(app_src: Path, helper_src: Path, framework_src: Path, dist_bin: Path
                 raise ValueError(f"IPA is missing {required}")
         if timbre is not None and b'uri.spec === "resource://app/extensions/timbre/"' not in archive.read(prefix + "Frameworks/GeckoView.framework/Frameworks/modules/GeckoViewWebExtension.sys.mjs"):
             raise ValueError("IPA's Gecko validator does not allow Timbre")
+        if b"MOZ_REQUIRE_SIGNING: false," not in archive.read(prefix + "Frameworks/GeckoView.framework/Frameworks/modules/AppConstants.sys.mjs"):
+            raise ValueError("IPA's Gecko still hard-requires signed add-ons")
         if prefix + "Frameworks/XUL" in names:
             raise ValueError("IPA still contains the unrenamed XUL")
         # Developer Gecko builds ship loose chrome files rather than omni.ja.

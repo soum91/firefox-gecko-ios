@@ -59,6 +59,7 @@ final class GeckoTabEngine {
         bridge.engine = self
         attachDelegates()
         GeckoAddonManager.shared.start()
+        GeckoTimbreButton.shared.update()
         session.open(windowId: Self.pendingWindowID)
         Self.pendingWindowID = nil
         geckoView.session = session
