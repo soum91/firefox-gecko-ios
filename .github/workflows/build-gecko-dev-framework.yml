@@ -28,13 +28,13 @@ concurrency:
   group: gecko-dev-framework-${{ github.ref }}
   cancel-in-progress: false
 env:
-  # One-shot stable build for a commit marked [timbre-fast]. Other commits
-  # keep the optional-signing engine pin, without compiling it automatically.
-  REYNARD_REF: ${{ contains(github.event.head_commit.message, '[timbre-fast]') && '55eecc5b63114b0072bf14bd4c55acec01e3a40a' || 'db5d418862893398eff76d1b38391f1c928eb7f7' }}
+  # 55eecc5: the Reynard fork's ff40037/db5d418 break Gecko's configure.
+  # Optional signing comes from the packaging-time AppConstants patch.
+  REYNARD_REF: 55eecc5b63114b0072bf14bd4c55acec01e3a40a
   XCODE_VERSION: '26.5'
   # Bump only when the Gecko build flags or the archive layout change.
   # v2: links in dist/ are resolved, so the archive is self-contained.
-  ENGINE_SCHEMA: ${{ contains(github.event.head_commit.message, '[timbre-fast]') && 'v2' || 'v3-optional-addon-signatures' }}
+  ENGINE_SCHEMA: v2
 jobs:
   framework-and-firefox:
     runs-on: macos-26
@@ -161,33 +161,6 @@ jobs:
         run: |
           set -o pipefail
           bash ./tools/development/build-gecko.sh --use-sccache --auto-clobber 2>&1 | tee "$RUNNER_TEMP/gecko-build.log"
-      - name: Verify Gecko permits the signature setting
-        if: env.ENGINE_SCHEMA == 'v3-optional-addon-signatures'
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          import zipfile
-
-          root = Path("reynard-source/engine/firefox/obj-aarch64-apple-ios/dist/bin")
-          paths = [root / "omni.ja", root / "modules/AppConstants.sys.mjs"]
-          sources = []
-          for path in paths:
-              if not path.exists():
-                  continue
-              if path.suffix == ".ja":
-                  with zipfile.ZipFile(path) as archive:
-                      for name in archive.namelist():
-                          if name.endswith("AppConstants.sys.mjs"):
-                              sources.append(archive.read(name).decode())
-              else:
-                  sources.append(path.read_text())
-          assert sources, "Could not locate built AppConstants to verify signing mode"
-          assert any(re.search(r"MOZ_REQUIRE_SIGNING\s*:\s*false", value) for value in sources), (
-              "Gecko still enforces signatures at build time"
-          )
-          print("Verified MOZ_REQUIRE_SIGNING: false")
-          PY
       - name: Preserve compiled Gecko engine before framework work
         id: archive-gecko
         if: steps.compile-gecko.outcome == 'success'

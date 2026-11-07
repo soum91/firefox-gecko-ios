@@ -24,6 +24,7 @@ Mozilla's Firefox 159 app (its own UI, tab tray, menus and settings) with web pa
 - Add-ons: Settings > Add-ons lists installed extensions and manages enable/disable, private tab access, settings and removal. Browse compatible add-ons opens a native AMO catalog, searches Firefox desktop extensions, downloads the Mozilla-listed signed XPI and installs it through Gecko's permission prompt.
 - Menu > Add-ons opens each add-on's toolbar popup (for example uBlock Origin's panel)
 - FetchDock Companion is built in: it lists direct file links on a page and sends them to FetchDock
+- Fixed Timbre EQ "could not start": Gecko kept loading Timbre from a folder an earlier build used, so it never started. Timbre now re-registers on every build (EQ settings are kept)
 - Timbre EQ is built in and loads the same way FetchDock Companion does (Gecko only allowed a fixed list of built-in add-on folders, and Timbre was not on it)
 - Timbre's Add-ons menu entry and floating button can open its bundled EQ popup even when Gecko has not reported the extension's toolbar action yet
 - Floating Timbre button over web pages opens the EQ panel; drag it to either side. Turn it off in Settings > Add-ons > Timbre EQ

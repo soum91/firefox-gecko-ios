@@ -200,6 +200,16 @@ def package(app_src: Path, helper_src: Path, framework_src: Path, dist_bin: Path
                 raise ValueError("Timbre built-in add-on ID mismatch")
             if not (target / "engine.js").is_file():
                 raise FileNotFoundError("Timbre audio engine is missing")
+            # Gecko only re-registers a built-in add-on when its version
+            # changes, and otherwise keeps loading it from the folder it was
+            # first installed from. Build 55 installed Timbre from ext/timbre/,
+            # which later builds don't ship, so Timbre stayed "enabled" but
+            # never started (no origin, no popup). Stamp the app build into
+            # the version so every build re-registers Timbre at this path.
+            # Its saved EQ settings live in storage keyed by ID and survive.
+            base = ".".join(str(data["version"]).split(".")[:3])
+            data["version"] = f"{base}.{int(build)}"
+            manifest.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
             # Loaded from resource://app/extensions/timbre/, like FetchDock;
             # the patch adds it to Gecko's iOS built-in allowlist.
             patch(gecko_frameworks)
