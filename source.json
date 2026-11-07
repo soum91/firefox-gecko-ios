@@ -19,6 +19,15 @@
       "category": "utilities",
       "versions": [
         {
+          "version": "159.0.60",
+          "buildVersion": "60",
+          "date": "2026-11-07",
+          "localizedDescription": "Build 60. Mozilla's Firefox 159 app (its own UI, tab tray, menus and settings) with web pages rendered by the Reynard Gecko engine instead of WebKit. Re-sign everything, including XUL.dylib, GeckoView.framework and Reynard Helper.appex.",
+          "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/native-gecko-159.0-build-60/Firefox-Gecko-Native-159.0-build-60.ipa",
+          "size": 365353429,
+          "minOSVersion": "15.0"
+        },
+        {
           "version": "159.0.59",
           "buildVersion": "59",
           "date": "2026-11-07",
@@ -98,22 +107,13 @@
           "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/native-gecko-159.0-build-38/Firefox-Gecko-Native-159.0-build-38.ipa",
           "size": 365265176,
           "minOSVersion": "15.0"
-        },
-        {
-          "version": "159.0.37",
-          "buildVersion": "37",
-          "date": "2026-11-05",
-          "localizedDescription": "Build 37. Mozilla's Firefox 159 app (its own UI, tab tray, menus and settings) with web pages rendered by the Reynard Gecko engine instead of WebKit. Re-sign everything, including XUL.dylib, GeckoView.framework and Reynard Helper.appex.",
-          "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/native-gecko-159.0-build-37/Firefox-Gecko-Native-159.0-build-37.ipa",
-          "size": 365266427,
-          "minOSVersion": "15.0"
         }
       ],
-      "version": "159.0.59",
+      "version": "159.0.60",
       "versionDate": "2026-11-07",
-      "versionDescription": "Build 59. Mozilla's Firefox 159 app (its own UI, tab tray, menus and settings) with web pages rendered by the Reynard Gecko engine instead of WebKit. Re-sign everything, including XUL.dylib, GeckoView.framework and Reynard Helper.appex.",
-      "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/native-gecko-159.0-build-59/Firefox-Gecko-Native-159.0-build-59.ipa",
-      "size": 365351578
+      "versionDescription": "Build 60. Mozilla's Firefox 159 app (its own UI, tab tray, menus and settings) with web pages rendered by the Reynard Gecko engine instead of WebKit. Re-sign everything, including XUL.dylib, GeckoView.framework and Reynard Helper.appex.",
+      "downloadURL": "https://github.com/soum91/firefox-gecko-ios/releases/download/native-gecko-159.0-build-60/Firefox-Gecko-Native-159.0-build-60.ipa",
+      "size": 365353429
     }
   ],
   "news": []
