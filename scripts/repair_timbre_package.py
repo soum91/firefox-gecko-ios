@@ -27,12 +27,26 @@ def repair(source, output, build):
                     path.chmod(mode)
         app = root / "Payload/Firefox.app"
         info = plistlib.loads((app / "Info.plist").read_bytes())
-        binary = app / info["CFBundleExecutable"]
-        data = binary.read_bytes()
-        count = data.count(OLD)
-        assert count == 1, f"Expected exactly one Timbre URI literal, found {count}"
+        matches = []
+        for candidate in app.rglob("*"):
+            if not candidate.is_file():
+                continue
+            with candidate.open("rb") as handle:
+                magic = handle.read(4)
+            if magic not in {bytes.fromhex("cffaedfe"), bytes.fromhex("cafebabe")}:
+                continue
+            data = candidate.read_bytes()
+            count = data.count(OLD)
+            if count:
+                matches.append((candidate, data, count))
+        count = sum(item[2] for item in matches)
+        assert count == 1, f"Expected exactly one Timbre URI literal across Mach-O binaries, found {count}"
+        binary, data, _ = matches[0]
+        patched_relative = str(binary.relative_to(app))
+        print(f"Repairing Timbre URI in {patched_relative}", flush=True)
         binary.write_bytes(data.replace(OLD, NEW))
         binary.chmod(0o755)
+        subprocess.run(["codesign", "--force", "--sign", "-", "--timestamp=none", str(binary)], check=True)
         gecko = app / "Frameworks/GeckoView.framework"
         manifest = gecko / "Frameworks/chrome.manifest"
         data = manifest.read_bytes()
@@ -58,7 +72,7 @@ def repair(source, output, build):
         assert archive.testzip() is None
         prefix = "Payload/Firefox.app/"
         info = plistlib.loads(archive.read(prefix + "Info.plist"))
-        binary = archive.read(prefix + info["CFBundleExecutable"])
+        binary = archive.read(prefix + patched_relative)
         assert binary.count(NEW) == 1 and OLD not in binary
         chrome = archive.read(prefix + "Frameworks/GeckoView.framework/Frameworks/chrome.manifest")
         assert NEW_MAP in chrome and OLD_MAP not in chrome
