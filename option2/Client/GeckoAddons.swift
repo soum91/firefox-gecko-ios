@@ -102,7 +102,7 @@ final class GeckoAddonManager: NSObject {
         }
         let packages = [
             (Self.companionID, "resource://app/extensions/fetchdock/"),
-            (Self.timbreID, "resource://android/timbre/"),
+            (Self.timbreID, "resource://app/extensions/timbre/"),
         ]
         for attempt in 0..<4 {
             for (id, location) in packages {

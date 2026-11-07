@@ -1,4 +1,7 @@
 name: Repair bundled Timbre IPA without compiling
+# Repackages the newest published Native UI IPA so Timbre loads from
+# resource://app/ext/timbre/ (the FetchDock route), then publishes it under the
+# next free build number. No Gecko or Swift compilation.
 on:
   push:
     branches: [firefox-native-gecko]
@@ -7,39 +10,52 @@ on:
       - scripts/repair_timbre_package.py
       - scripts/patch_timbre_builtin.py
   workflow_dispatch:
+    inputs:
+      source_build:
+        description: "Published native-gecko build to repackage"
+        default: "52"
 permissions:
   contents: write
-  actions: write
+  actions: read
+concurrency:
+  group: repair-timbre-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   repair:
     runs-on: macos-26
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       GH_TOKEN: ${{ github.token }}
+      SOURCE_BUILD: ${{ github.event.inputs.source_build || '52' }}
     steps:
       - uses: actions/checkout@v4
-      - name: Stop superseded engine builds until the repair publishes
+      - name: Download the published source IPA
         run: |
-          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/build-gecko-dev-framework.yml/runs?per_page=30" --jq '.workflow_runs[] | select(.status == "queued" or .status == "pending") | .id' > "$RUNNER_TEMP/stop-runs.txt"
-          while read -r run; do
-            gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$run/cancel" || true
-          done < "$RUNNER_TEMP/stop-runs.txt"
-      - uses: actions/download-artifact@v4
-        with:
-          name: Firefox-Gecko-Native-159.0-build-48
-          run-id: 42323802121
-          github-token: ${{ github.token }}
-          path: original
-      - name: Repair the bundled URI and mapping, sign and verify package
+          set -euo pipefail
+          tag="native-gecko-159.0-build-${SOURCE_BUILD}"
+          asset=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag" \
+            --jq '.assets[] | select(.name | endswith(".ipa")) | .id' | head -n 1)
+          test -n "$asset"
+          mkdir -p original
+          gh api -H "Accept: application/octet-stream" \
+            "repos/$GITHUB_REPOSITORY/releases/assets/$asset" > original/source.ipa
+          ls -la original
+      - name: Pick the next free build number
+        id: build
+        run: echo "number=$(bash scripts/next_native_build.sh)" >> "$GITHUB_OUTPUT"
+      - name: Point Timbre at the FetchDock resource route, sign and verify
         run: |
-          python3 scripts/repair_timbre_package.py original/Firefox-Gecko-Native-159.0-build-48.ipa "$RUNNER_TEMP/ipa/Firefox-Gecko-Native-159.0-build-52.ipa" --build 52
+          python3 scripts/repair_timbre_package.py original/source.ipa \
+            "$RUNNER_TEMP/ipa/Firefox-Gecko-Native-159.0-build-${{ steps.build.outputs.number }}.ipa" \
+            --build "${{ steps.build.outputs.number }}"
       - uses: actions/upload-artifact@v4
         with:
-          name: Firefox-Gecko-Native-159.0-build-52
-          path: ${{ runner.temp }}/ipa/Firefox-Gecko-Native-159.0-build-52.ipa
+          name: Firefox-Gecko-Native-159.0-build-${{ steps.build.outputs.number }}
+          path: ${{ runner.temp }}/ipa/Firefox-Gecko-Native-159.0-build-${{ steps.build.outputs.number }}.ipa
           compression-level: 0
           retention-days: 14
-      - name: Publish repair and update FlareStore
-        run: bash scripts/publish_native_gecko_release.sh "$RUNNER_TEMP/ipa/Firefox-Gecko-Native-159.0-build-52.ipa" 52 "$GITHUB_SHA"
-      - name: Restart optional-signing engine with the corrected Timbre source
-        run: gh workflow run build-gecko-dev-framework.yml --ref firefox-native-gecko -f force_engine_rebuild=true
+      - name: Publish and update FlareStore
+        run: |
+          bash scripts/publish_native_gecko_release.sh \
+            "$RUNNER_TEMP/ipa/Firefox-Gecko-Native-159.0-build-${{ steps.build.outputs.number }}.ipa" \
+            "${{ steps.build.outputs.number }}" "$GITHUB_SHA"

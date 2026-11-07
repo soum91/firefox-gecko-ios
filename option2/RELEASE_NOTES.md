@@ -24,6 +24,7 @@ Mozilla's Firefox 159 app (its own UI, tab tray, menus and settings) with web pa
 - Add-ons: Settings > Add-ons lists installed extensions and manages enable/disable, private tab access, settings and removal. Browse compatible add-ons opens a native AMO catalog, searches Firefox desktop extensions, downloads the Mozilla-listed signed XPI and installs it through Gecko's permission prompt.
 - Menu > Add-ons opens each add-on's toolbar popup (for example uBlock Origin's panel)
 - FetchDock Companion is built in: it lists direct file links on a page and sends them to FetchDock
+- Timbre EQ is built in and loads the same way FetchDock Companion does (Gecko only allowed a fixed list of built-in add-on folders, and Timbre was not on it)
 - Safari redirect: with Safari as the default browser, links that open in Safari jump to Firefox Gecko. Turn on "Open in Firefox Gecko" in Settings > Apps > Safari > Extensions and allow it on all websites. Its toolbar popup turns it off, excludes a site, or keeps you in Safari for 10 minutes
 - Share sheet: Firefox Gecko opens a shared link or text in a normal or private tab, or downloads the link with FetchDock
 - This app uses the URL scheme firefoxgecko:// instead of firefox://, so it no longer catches links meant for a real Firefox

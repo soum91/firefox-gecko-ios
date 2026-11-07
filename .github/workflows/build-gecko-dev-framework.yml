@@ -355,11 +355,13 @@ jobs:
           test -f dist/addon/engine.js
       - name: Package Firefox Gecko IPA
         id: ipa
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           app=$(find "$RUNNER_TEMP/firefox-app/Build/Products" -path '*-iphoneos/Client.app' -type d | head -n 1)
           test -n "$app"
-          build="${{ github.run_number }}"
+          build=$(bash scripts/next_native_build.sh)
           products="$RUNNER_TEMP/reynard-gecko-dev/Build/Products/Release-iphoneos"
           out="$RUNNER_TEMP/ipa/Firefox-Gecko-Native-159.0-build-${build}.ipa"
           python3 scripts/package_native_gecko_ipa.py --app "$app" \
@@ -374,10 +376,11 @@ jobs:
             --output "$out" --version "159.0.${build}" --build "$build" --missing-report "$RUNNER_TEMP/missing-gecko-files.txt" \
             2>&1 | tee "$RUNNER_TEMP/ipa-package.log"
           echo "path=$out" >> "$GITHUB_OUTPUT"
+          echo "build=$build" >> "$GITHUB_OUTPUT"
       - name: Upload Firefox Gecko IPA
         uses: actions/upload-artifact@v4
         with:
-          name: Firefox-Gecko-Native-159.0-build-${{ github.run_number }}
+          name: Firefox-Gecko-Native-159.0-build-${{ steps.ipa.outputs.build }}
           path: ${{ steps.ipa.outputs.path }}
           compression-level: 0
           retention-days: 14
@@ -388,7 +391,7 @@ jobs:
         run: |
           set -o pipefail
           bash scripts/publish_native_gecko_release.sh "${{ steps.ipa.outputs.path }}" \
-            "${{ github.run_number }}" "$GITHUB_SHA" "$RUNNER_TEMP/missing-gecko-files.txt" \
+            "${{ steps.ipa.outputs.build }}" "$GITHUB_SHA" "$RUNNER_TEMP/missing-gecko-files.txt" \
             2>&1 | tee "$RUNNER_TEMP/publish.log"
       - name: Show the real compiler errors on the run page
         if: failure()

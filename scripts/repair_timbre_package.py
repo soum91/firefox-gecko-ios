@@ -1,18 +1,31 @@
 #!/usr/bin/env python3
-"""Repair build 48's bundled extension URI without recompiling native code."""
+"""Repackage a published Firefox Gecko IPA so Timbre loads, without compiling.
+
+Gecko's iOS built-in validator never allowed Timbre's folder, and the
+resource://android/ host Swift was later pointed at fails on iOS. FetchDock
+already loads from resource://app/, so Timbre goes there too:
+
+  * the compiled Swift literal resource://android/timbre/ becomes
+    resource://app/ext/timbre/ (same 26 bytes, so the Mach-O stays intact)
+  * the add-on is copied to GeckoView.framework/Frameworks/ext/timbre/
+  * the stray `resource android` mapping is removed from chrome.manifest
+  * GeckoViewWebExtension.sys.mjs allows exactly that URI
+"""
 import argparse
 import plistlib
 import shutil
 import subprocess
 import tempfile
 import zipfile
-from patch_timbre_builtin import patch
 from pathlib import Path
 
-OLD = b"resource://timbre-builtin/"
-NEW = b"resource://android/timbre/"
-OLD_MAP = b"resource timbre-builtin file:extensions/timbre/"
-NEW_MAP = b"resource android file:extensions/"
+from patch_timbre_builtin import patch
+
+OLD = b"resource://android/timbre/"
+NEW = b"resource://app/ext/timbre/"
+STRAY_MAP = b"resource android file:extensions/\n"
+MACHO = {bytes.fromhex(m) for m in ("cffaedfe", "cefaedfe", "cafebabe", "bebafeca")}
+
 
 def repair(source, output, build):
     assert len(OLD) == len(NEW)
@@ -24,62 +37,78 @@ def repair(source, output, build):
             for entry in archive.infolist():
                 path = root / entry.filename
                 mode = (entry.external_attr >> 16) & 0o777
-                if mode and path.exists():
+                if mode and path.exists() and not path.is_symlink():
                     path.chmod(mode)
         app = root / "Payload/Firefox.app"
-        info = plistlib.loads((app / "Info.plist").read_bytes())
+
         matches = []
         for candidate in app.rglob("*"):
-            if not candidate.is_file():
+            if not candidate.is_file() or candidate.is_symlink():
                 continue
             with candidate.open("rb") as handle:
-                magic = handle.read(4)
-            if magic not in {bytes.fromhex("cffaedfe"), bytes.fromhex("cafebabe")}:
-                continue
+                if handle.read(4) not in MACHO:
+                    continue
             data = candidate.read_bytes()
-            count = data.count(OLD)
-            if count:
-                matches.append((candidate, data, count))
-        count = sum(item[2] for item in matches)
-        assert count == 1, f"Expected exactly one Timbre URI literal across Mach-O binaries, found {count}"
-        binary, data, _ = matches[0]
+            if NEW in data:
+                matches.append((candidate, data, 0))
+            elif data.count(OLD):
+                matches.append((candidate, data, data.count(OLD)))
+        assert len(matches) == 1, f"Expected the Timbre URI in one Mach-O, found {[str(m[0]) for m in matches]}"
+        binary, data, count = matches[0]
+        assert count in (0, 1), f"Timbre URI appears {count} times in {binary}"
         patched_relative = str(binary.relative_to(app))
-        print(f"Repairing Timbre URI in {patched_relative}", flush=True)
-        binary.write_bytes(data.replace(OLD, NEW))
-        binary.chmod(0o755)
-        subprocess.run(["codesign", "--force", "--sign", "-", "--timestamp=none", str(binary)], check=True)
+        if count:
+            print(f"Pointing Timbre at {NEW.decode()} in {patched_relative}", flush=True)
+            binary.write_bytes(data.replace(OLD, NEW))
+            binary.chmod(0o755)
+            subprocess.run(["codesign", "--force", "--sign", "-", "--timestamp=none", str(binary)], check=True)
+
         gecko = app / "Frameworks/GeckoView.framework"
-        patch(gecko / "Frameworks")
-        manifest = gecko / "Frameworks/chrome.manifest"
-        data = manifest.read_bytes()
-        assert data.count(OLD_MAP) == 1
-        manifest.write_bytes(data.replace(OLD_MAP, NEW_MAP))
-        extension = gecko / "Frameworks/extensions/timbre"
-        assert (extension / "manifest.json").is_file()
-        assert (extension / "engine.js").is_file()
+        runtime = gecko / "Frameworks"
+        bundled = runtime / "extensions/timbre"
+        assert (bundled / "manifest.json").is_file(), "Timbre add-on missing from the IPA"
+        assert (bundled / "engine.js").is_file(), "Timbre audio engine missing from the IPA"
+        target = runtime / "ext/timbre"
+        if target.exists():
+            shutil.rmtree(target)
+        shutil.copytree(bundled, target)
+
+        manifest = runtime / "chrome.manifest"
+        manifest.write_bytes(manifest.read_bytes().replace(STRAY_MAP, b""))
+        patch(runtime)
+
         for bundle in [app, *sorted((app / "PlugIns").glob("*.appex"))]:
             path = bundle / "Info.plist"
             info = plistlib.loads(path.read_bytes())
             info["CFBundleShortVersionString"] = f"159.0.{build}"
             info["CFBundleVersion"] = str(build)
             path.write_bytes(plistlib.dumps(info, sort_keys=False))
-            exe = bundle / info["CFBundleExecutable"]
-            exe.chmod(0o755)
+            (bundle / info["CFBundleExecutable"]).chmod(0o755)
         for bundle in [gecko, *sorted((app / "PlugIns").glob("*.appex")), app]:
             subprocess.run(["codesign", "--force", "--sign", "-", "--timestamp=none", str(bundle)], check=True)
             subprocess.run(["codesign", "--verify", "--strict", str(bundle)], check=True)
         output.parent.mkdir(parents=True, exist_ok=True)
-        subprocess.run(["ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", str(root / "Payload"), str(output)], check=True)
+        if output.exists():
+            output.unlink()
+        subprocess.run(["ditto", "-c", "-k", "--sequesterRsrc", "--keepParent",
+                        str(root / "Payload"), str(output)], check=True)
+
     with zipfile.ZipFile(output) as archive:
         assert archive.testzip() is None
         prefix = "Payload/Firefox.app/"
+        names = set(archive.namelist())
         info = plistlib.loads(archive.read(prefix + "Info.plist"))
+        assert info["CFBundleVersion"] == str(build)
         binary = archive.read(prefix + patched_relative)
         assert binary.count(NEW) == 1 and OLD not in binary
-        chrome = archive.read(prefix + "Frameworks/GeckoView.framework/Frameworks/chrome.manifest")
-        assert NEW_MAP in chrome and OLD_MAP not in chrome
-        assert info["CFBundleVersion"] == str(build)
+        runtime = prefix + "Frameworks/GeckoView.framework/Frameworks/"
+        for name in ("manifest.json", "engine.js", "background.js", "bridge.js", "boot.js"):
+            assert runtime + "ext/timbre/" + name in names, name
+        assert STRAY_MAP not in archive.read(runtime + "chrome.manifest")
+        js = archive.read(runtime + "modules/GeckoViewWebExtension.sys.mjs")
+        assert b'uri.spec === "resource://app/ext/timbre/"' in js
     print(f"Verified repaired IPA: {output}, {output.stat().st_size} bytes")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
