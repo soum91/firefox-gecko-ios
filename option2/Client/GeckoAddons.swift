@@ -64,6 +64,8 @@ final class GeckoAddonManager: NSObject {
     static func setRequireAddonSignatures(_ required: Bool) {
         UserDefaults.standard.set(required, forKey: signatureKey)
         GeckoRuntime.setDefaultPrefs(["xpinstall.signatures.required": required])
+        GeckoRuntime.dispatchEvent(type: "GeckoView:ResetUserPrefs",
+                                   message: ["names": ["xpinstall.signatures.required"]])
     }
     static let galleryURL = URL(string: "https://addons.mozilla.org/android/")!
 
