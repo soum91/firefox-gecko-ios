@@ -28,7 +28,7 @@ concurrency:
   group: gecko-dev-framework-${{ github.ref }}
   cancel-in-progress: false
 env:
-  REYNARD_REF: ff40037da4fb3a627a3ae4ab85c79a872f2166dd
+  REYNARD_REF: db5d418862893398eff76d1b38391f1c928eb7f7
   XCODE_VERSION: '26.5'
   # Bump only when the Gecko build flags or the archive layout change.
   # v2: links in dist/ are resolved, so the archive is self-contained.
