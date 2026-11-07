@@ -29,7 +29,7 @@ env:
   XCODE_VERSION: '26.5'
   # Bump only when the Gecko build flags or the archive layout change.
   # v2: links in dist/ are resolved, so the archive is self-contained.
-  ENGINE_SCHEMA: v3-optional-addon-signatures
+  ENGINE_SCHEMA: v2
 jobs:
   framework-and-firefox:
     runs-on: macos-26
