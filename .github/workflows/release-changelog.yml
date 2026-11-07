@@ -9,6 +9,7 @@ on:
       - "Publish original Firefox 159 wrapper to FlareStore"
       - "Repair XUL loader signature in Firefox Gecko"
       - "Repair Firefox Gecko IPA with essential child-process helper"
+      - "Build unstripped Reynard GeckoView for Firefox native shell"
     types: [completed]
   schedule:
     - cron: '17 */6 * * *'
