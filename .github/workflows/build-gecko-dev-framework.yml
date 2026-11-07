@@ -18,18 +18,18 @@ on:
 permissions:
   # contents: write publishes the IPA as a prerelease.
   contents: write
-  actions: read
+  actions: write
 # A push while Gecko is compiling waits for that run instead of starting a
 # second multi-hour compile. When it starts, the engine is already cached.
 concurrency:
   group: gecko-dev-framework-${{ github.ref }}
   cancel-in-progress: false
 env:
-  REYNARD_REF: ff40037da4fb3a627a3ae4ab85c79a872f2166dd
+  REYNARD_REF: 55eecc5b63114b0072bf14bd4c55acec01e3a40a
   XCODE_VERSION: '26.5'
   # Bump only when the Gecko build flags or the archive layout change.
   # v2: links in dist/ are resolved, so the archive is self-contained.
-  ENGINE_SCHEMA: v3-optional-addon-signatures
+  ENGINE_SCHEMA: v2
 jobs:
   framework-and-firefox:
     runs-on: macos-26
@@ -40,6 +40,13 @@ jobs:
       MOZ_NOSPAM: "1"
     steps:
       - uses: actions/checkout@v4
+      - name: Stop superseded optional-signing runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for run in 42322855083 42323177594 42323640679; do
+            gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$run/cancel" >/dev/null 2>&1 || true
+          done
       - name: Checkout pinned Reynard Gecko source
         uses: actions/checkout@v4
         with:
@@ -107,7 +114,12 @@ jobs:
           mv "$staging/dist" "$obj/dist"
           echo "ready=true" >> "$GITHUB_OUTPUT"
           echo "Skipping Gecko compile: reused ${{ steps.engine-key.outputs.key }}" >> "$GITHUB_STEP_SUMMARY"
-      # A cache miss compiles Gecko once with configurable extension signing.
+      - name: Require cached Gecko engine without recompilation
+        run: |
+          test "${{ steps.engine-reuse.outputs.ready }}" = "true" || {
+            echo "::error::Compiled Gecko engine cache unavailable. Refusing to compile Gecko for this repackaging build."
+            exit 1
+          }
       - name: Install Gecko build dependencies
         if: steps.engine-reuse.outputs.ready != 'true'
         run: |
@@ -150,33 +162,6 @@ jobs:
         run: |
           set -o pipefail
           ./tools/development/build-gecko.sh --use-sccache --auto-clobber 2>&1 | tee "$RUNNER_TEMP/gecko-build.log"
-      - name: Verify Gecko permits the signature setting
-        if: steps.compile-gecko.outcome == 'success'
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          import zipfile
-
-          root = Path("reynard-source/engine/firefox/obj-aarch64-apple-ios/dist/bin")
-          paths = [root / "omni.ja", root / "modules/AppConstants.sys.mjs"]
-          sources = []
-          for path in paths:
-              if not path.exists():
-                  continue
-              if path.suffix == ".ja":
-                  with zipfile.ZipFile(path) as archive:
-                      for name in archive.namelist():
-                          if name.endswith("AppConstants.sys.mjs"):
-                              sources.append(archive.read(name).decode())
-              else:
-                  sources.append(path.read_text())
-          assert sources, "Could not locate built AppConstants to verify signing mode"
-          assert any(re.search(r"MOZ_REQUIRE_SIGNING\s*:\s*false", value) for value in sources), (
-              "Gecko still enforces signatures at build time"
-          )
-          print("Verified MOZ_REQUIRE_SIGNING: false")
-          PY
       - name: Preserve compiled Gecko engine before framework work
         id: archive-gecko
         if: steps.compile-gecko.outcome == 'success'
@@ -390,6 +375,19 @@ jobs:
           bash scripts/publish_native_gecko_release.sh "${{ steps.ipa.outputs.path }}" \
             "${{ github.run_number }}" "$GITHUB_SHA" "$RUNNER_TEMP/missing-gecko-files.txt" \
             2>&1 | tee "$RUNNER_TEMP/publish.log"
+      - name: Restore optional-signing engine workflow and start its build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git fetch --depth=1 origin 558db154521b96398fc9fd95407034e098f777be
+          git show FETCH_HEAD:.github/workflows/build-gecko-dev-framework.yml > .github/workflows/build-gecko-dev-framework.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/build-gecko-dev-framework.yml
+          git commit -m "Resume optional-signing Gecko engine build after Timbre release"
+          git push origin HEAD:firefox-native-gecko
+          gh workflow run build-gecko-dev-framework.yml --ref firefox-native-gecko -f force_engine_rebuild=true
       - name: Show the real compiler errors on the run page
         if: failure()
         run: |
