@@ -1,6 +1,6 @@
 # Firefox Gecko iOS
 
-Private integration project for Soumen's Firefox-style iOS browser with the Gecko engine, Reynard add-ons, and FetchDock downloads.
+Private integration project for the project's Firefox-style iOS browser with the Gecko engine, Reynard add-ons, and FetchDock downloads.
 
 ## Status
 
